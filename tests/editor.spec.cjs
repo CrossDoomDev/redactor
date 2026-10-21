@@ -650,3 +650,31 @@ test("continuous diagonal resize remains monotone with varying X and Y movement"
     expect(samples[i] - samples[i - 1]).toBeLessThanOrEqual(15);
   }
 });
+
+test("image drag round trip through original size remains continuous and reversible", async ({ page }) => {
+  const sample = await prepareResizableImage(page);
+  const handle = page.locator("#imageResizeOverlay .image-resize-se");
+  const rect = await handle.boundingBox();
+  const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+  await page.mouse.move(x,y); await page.mouse.down();
+  const points = [[15,10],[50,32],[100,65],[150,90],[120,72],[80,48],[40,24],
+    [15,9],[5,3],[2,1],[0,0],[-2,-1],[-5,-3],[-12,-6],[-35,-22],
+    [-12,-6],[-3,-2],[0,0],[3,2],[12,7],[45,30]];
+  const readings = [];
+  for(const [dx,dy] of points) {
+    await page.mouse.move(x+dx,y+dy);
+    const state = await sample.evaluate(el=>({width:Number(el.getAttribute("width")),rendered:el.getBoundingClientRect().width}));
+    readings.push({...state,dx,dy});
+  }
+  await page.mouse.up();
+  console.log("ROUNDTRIP", JSON.stringify(readings));
+  for(let i=1;i<readings.length;i++){
+    const dx=readings[i].dx-readings[i-1].dx;
+    const dy=readings[i].dy-readings[i-1].dy;
+    expect(Math.abs(readings[i].width-readings[i-1].width))
+      .toBeLessThanOrEqual(Math.sqrt(dx*dx+dy*dy)+2);
+    expect(Math.abs(readings[i].rendered-readings[i-1].rendered))
+      .toBeLessThanOrEqual(Math.sqrt(dx*dx+dy*dy)+2);
+  }
+  for(const r of readings.filter(x=>x.dx===0&&x.dy===0))expect(r.width).toBe(280);
+});
