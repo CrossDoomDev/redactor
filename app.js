@@ -199,6 +199,56 @@
       .map((node) => serialize(node, 0)).join("\n");
   }
 
+  // Syntax highlighting is only a visual layer behind the real textarea.
+  // Keeping the textarea as the sole editable control preserves cursor,
+  // selection, undo, whitespace and clipboard behavior.
+  function highlightHtmlSource(html) {
+    const tokenClass = (name, value) =>
+      '<span class="html-token-' + name + '">' + escapeHtml(value) + '</span>';
+    const out = [];
+    const pattern = /<!--[\s\S]*?-->|<!doctype[^>]*>|<\/?[a-z][^>]*>|&(?:#[0-9]+|#x[0-9a-f]+|[a-z][\w]+);/gi;
+    let last = 0;
+    for (const match of html.matchAll(pattern)) {
+      out.push(escapeHtml(html.slice(last, match.index)));
+      const token = match[0];
+      if (token.startsWith("<!--")) out.push(tokenClass("comment", token));
+      else if (/^<!doctype/i.test(token)) out.push(tokenClass("doctype", token));
+      else if (token[0] === "&") out.push(tokenClass("entity", token));
+      else {
+        const tag = /^(<\/?)([a-z][\w:-]*)([\s\S]*?)(\/?>)$/i.exec(token);
+        if (!tag) { out.push(escapeHtml(token)); }
+        else {
+          out.push(tokenClass("punctuation", tag[1]));
+          out.push(tokenClass("tag", tag[2]));
+          const attrs = tag[3];
+          const attrPattern = /([^\s=\/>]+)(\s*=\s*)("[^"]*"|'[^']*'|[^\s>]+)/g;
+          let cursor = 0;
+          for (const attr of attrs.matchAll(attrPattern)) {
+            out.push(escapeHtml(attrs.slice(cursor, attr.index)));
+            out.push(tokenClass("attribute", attr[1]));
+            out.push(tokenClass("punctuation", attr[2]));
+            out.push(tokenClass("string", attr[3]));
+            cursor = attr.index + attr[0].length;
+          }
+          out.push(escapeHtml(attrs.slice(cursor)));
+          out.push(tokenClass("punctuation", tag[4]));
+        }
+      }
+      last = match.index + token.length;
+    }
+    out.push(escapeHtml(html.slice(last)));
+    return out.join("");
+  }
+  function syncHtmlSourceScroll() {
+    $("htmlSourceHighlight").scrollTop = sourceEditor.scrollTop;
+    $("htmlSourceHighlight").scrollLeft = sourceEditor.scrollLeft;
+  }
+  function refreshHtmlSourceHighlight() {
+    const raw = sourceEditor.value;
+    $("htmlSourceHighlight").querySelector("code").innerHTML =
+      highlightHtmlSource(raw) + (raw.endsWith("\n") ? " " : "");
+    syncHtmlSourceScroll();
+  }
   function inlineMarkdown(raw) {
     const codes = [];
     const marker = "\uE000";
@@ -611,6 +661,7 @@
     editor.innerHTML = sanitizeHtml(lesson.html);
     prepareCodeBlocks(editor);
     sourceEditor.value = prettyHtml(lesson.html);
+    refreshHtmlSourceHighlight();
     sourceSnapshot = sanitizeHtml(lesson.html);
     pendingInlineCode = false;
     savedRange = null;
@@ -644,6 +695,7 @@
         // Leave manually entered line breaks and indentation untouched if
         // the lesson hasn't changed in the visual editor.
         if (html !== sourceSnapshot) sourceEditor.value = prettyHtml(html);
+        refreshHtmlSourceHighlight();
         sourceSnapshot = html;
       }
       pendingInlineCode = false;
@@ -1696,7 +1748,15 @@
     toast(rich ? "HTML-разметка из буфера вставлена." : $("markdownToggle").checked ? "Текст вставлен, Markdown преобразован." : "Текст вставлен без форматирования.");
   });
   editor.addEventListener("input", () => { markDirty(); setToolbarState(); });
-  sourceEditor.addEventListener("input", markDirty);
+  sourceEditor.addEventListener("input", () => { refreshHtmlSourceHighlight(); markDirty(); });
+  sourceEditor.addEventListener("scroll", syncHtmlSourceScroll);
+  sourceEditor.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.shiftKey) return;
+    event.preventDefault();
+    sourceEditor.setRangeText("  ", sourceEditor.selectionStart, sourceEditor.selectionEnd, "end");
+    sourceEditor.dispatchEvent(new Event("input", { bubbles: true }));
+  });
   lessonTitle.addEventListener("input", () => {
     selectedLesson().title = lessonTitle.value.trim() || "Без названия";
     renderLessons();
