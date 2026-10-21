@@ -511,8 +511,12 @@ async function prepareResizableImage(page) {
   return img;
 }
 async function dragImageHandle(page, corner, dx, dy) {
+  // The opposite corner may move below the browser viewport after enlarging
+  // the image, so bring the image fully into view before the next drag.
+  await page.locator("#editor figure.lesson-image img").scrollIntoViewIfNeeded();
   const handle = page.locator("#imageResizeOverlay .image-resize-" + corner);
   await expect(handle).toBeVisible();
+  await expect(handle).toBeInViewport();
   const rect = await handle.boundingBox();
   const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
   await page.mouse.move(x, y);
@@ -566,18 +570,8 @@ test("all four handles support pointer drag and selected image stays adjustable"
   await dragImageHandle(page, "ne", 40, -30);
   const grown = Number(await img.getAttribute("width"));
   expect(grown).toBeGreaterThan(280);
-  await page.evaluate(() => {
-    window.__resizeDebug = [];
-    ["pointerdown","pointermove","pointerup"].forEach((type) => {
-      document.addEventListener(type, (event) => window.__resizeDebug.push({
-        type, target: event.target.className, x:event.clientX, y:event.clientY,
-        width:document.querySelector("#editor figure img").getAttribute("width")
-      }), true);
-    });
-  });
   await dragImageHandle(page, "sw", 40, -30);
   const shrunk = Number(await img.getAttribute("width"));
-  console.log("SW drag", JSON.stringify(await page.evaluate(() => window.__resizeDebug)));
   expect(shrunk).toBeLessThan(grown);
   await expect(page.locator("#imageResizeOverlay")).toHaveClass(/visible/);
 });
