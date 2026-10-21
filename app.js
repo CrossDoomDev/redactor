@@ -845,6 +845,75 @@
     afterFormatting();
   }
 
+
+  async function prepareImageFile(file) {
+    const mime = file?.type || "";
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(mime)) throw Error("Поддерживаются PNG, JPEG, WebP и GIF.");
+    if (file.size > 12 * 1024 * 1024) throw Error("Изображение больше 12 МБ.");
+    let output = file, width = 600;
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(file);
+      width = Math.min(bitmap.width, 900);
+      if (file.size > MAX_IMAGE_BYTES || bitmap.width > 1800 || bitmap.height > 1800) {
+        const ratio = Math.min(1, 1500 / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+        canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+        canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        const candidate = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", .84));
+        if (candidate) output = candidate;
+        width = Math.min(canvas.width, 900);
+      }
+    } catch (_) {
+      // Decoding is optional; the browser will still render supported images.
+    } finally {
+      if (bitmap?.close) bitmap.close();
+    }
+    if (output.size > MAX_IMAGE_BYTES) throw Error("Изображение слишком большое. Используй файл поменьше.");
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(Error("Не удалось прочитать изображение."));
+      reader.readAsDataURL(output);
+    });
+    if (!safeImageUrl(dataUrl)) throw Error("Не удалось безопасно вставить изображение.");
+    return { dataUrl, width: Math.max(60, width) };
+  }
+  function insertImageData(dataUrl, width, sourceRange = null) {
+    if (mode !== "visual") return;
+    if (sourceRange && editor.contains(sourceRange.commonAncestorContainer)) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(sourceRange.cloneRange());
+      savedRange = sourceRange.cloneRange();
+    }
+    if (selectionTouchesCode()) {
+      toast("Нельзя вставить изображение внутрь многострочного кода.");
+      return;
+    }
+    selectLessonImage(null);
+    const html = '<figure style="text-align: left"><img src="' + escapeHtml(dataUrl) +
+      '" alt="Иллюстрация урока" width="' + width + '"></figure><p></p>';
+    insertHtml(html);
+    const images = Array.from(editor.querySelectorAll("figure img"));
+    const img = images.find((node) => node.getAttribute("src") === dataUrl) || images.at(-1);
+    if (img) {
+      selectLessonImage(img);
+      setToolbarState();
+    }
+    toast("Изображение вставлено. Нажми на него для настройки.");
+  }
+  async function importImageFile(file, range = null) {
+    if (!file) return;
+    try {
+      const { dataUrl, width } = await prepareImageFile(file);
+      insertImageData(dataUrl, width, range);
+    } catch (error) {
+      toast(error.message || "Не удалось вставить изображение.");
+    }
+  }
+
   function setToolbarState() {
     const range = mode === "visual" ? editorRange() : null;
     const codeProtected = mode === "visual" && selectionTouchesCode(range);
