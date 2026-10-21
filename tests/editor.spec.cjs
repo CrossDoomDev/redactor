@@ -110,9 +110,32 @@ test("code button at empty caret enables typing, does not insert word code, then
   await expect(button).toHaveAttribute("aria-pressed", "true");
   await button.click();
   await expect(button).toHaveAttribute("aria-pressed", "false");
+  // Toggling a styled code run off makes the whole run ordinary text.
+  await expect(page.locator("#editor code")).toHaveCount(0);
   await page.keyboard.type(" after");
-  await expect(page.locator("#editor code")).toHaveText("my_var");
+  await expect(page.locator("#editor code")).toHaveCount(0);
   await expect(page.locator("#editor")).toContainText("my_var after");
+});
+
+test("cursor in the middle of code removes formatting from the entire run", async ({ page }) => {
+  await putSelection(page, "<p>До <code>abcdef</code> после</p>", "code", 3);
+  const button = page.locator('[data-action="inlineCode"]');
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+  await button.click();
+  await expect(page.locator("#editor code")).toHaveCount(0);
+  await expect(button).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("#editor")).toHaveText("До abcdef после");
+  await page.keyboard.type("XYZ");
+  await expect(page.locator("#editor")).toHaveText("До abcXYZdef после");
+  await expect(page.locator("#editor code")).toHaveCount(0);
+});
+
+test("only code run under caret is unwrapped; adjacent code stays formatted", async ({ page }) => {
+  await putSelection(page, "<p><code>первый</code> текст <code>второй</code></p>", "code", 3);
+  await page.locator('[data-action="inlineCode"]').click();
+  await expect(page.locator("#editor code")).toHaveCount(1);
+  await expect(page.locator("#editor code")).toHaveText("второй");
+  await expect(page.locator("#editor")).toHaveText("первый текст второй");
 });
 
 test("empty code mode can be cancelled without modifying content", async ({ page }) => {
