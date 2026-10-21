@@ -463,3 +463,57 @@ body { background: #f8f9fd; color: var(--ink); }
 .rich-editor pre[data-language="none"][contenteditable="false"]::before {
   content: "No Highlight  ·  Двойной щелчок для редактирования";
 }
+
+
+/* Compact H1/H2/H3 hierarchy and in-place HTML source highlighting. */
+.article-content h1 { font-size: clamp(31px, 2.8vw, 36px); line-height: 1.2; margin: 29px 0 17px; }
+.article-content h2 { font-size: clamp(24px, 2.2vw, 28px); line-height: 1.27; margin: 31px 0 15px; }
+.article-content h3 { font-size: clamp(20px, 1.7vw, 22px); line-height: 1.35; margin: 26px 0 13px; }
+@media(max-width:800px) {
+  .article-content h1 { font-size: 33px; }
+  .article-content h2 { font-size: 26px; }
+  .article-content h3 { font-size: 21px; }
+}
+@media(max-width:580px) {
+  .article-content h1 { font-size: 30px; }
+  .article-content h2 { font-size: 25px; }
+  .article-content h3 { font-size: 20px; }
+}
+
+/* Keep the complete lesson code surface controlled by the same variables. */
+.article-content pre, .code-input-shell, #codeHighlight {
+  background: var(--code-surface); color: var(--code-ink);
+}
+.rich-editor pre[contenteditable="false"]::before { background: var(--code-header); }
+
+.html-source-shell { position: relative; background: #fafbff; }
+#sourceEditor, #htmlSourceHighlight {
+  box-sizing: border-box; width: 100%; margin: 0; padding: 25px 29px;
+  font: 13px/1.7 "Cascadia Code", Consolas, "Courier New", monospace;
+  letter-spacing: 0; tab-size: 2; white-space: pre; word-break: normal;
+  overflow-wrap: normal; text-align: left; overflow: auto;
+}
+#sourceEditor {
+  position: relative; z-index: 2; min-height: 390px; resize: vertical;
+  border: 0; outline: none; background: transparent; color: transparent;
+  -webkit-text-fill-color: transparent; caret-color: #34415b;
+}
+#sourceEditor::selection { background: rgba(110, 94, 235, .23); }
+#sourceEditor::placeholder { color: #98a0b4; -webkit-text-fill-color: #98a0b4; }
+#htmlSourceHighlight {
+  position: absolute; inset: 0; z-index: 1; border: 0; border-radius: 0;
+  pointer-events: none; scrollbar-width: none; background: #fafbff;
+  color: #42516a; min-height: 390px;
+}
+#htmlSourceHighlight::-webkit-scrollbar { display: none; }
+#htmlSourceHighlight code { font: inherit; color: inherit; white-space: inherit; padding: 0; background: none; }
+#htmlSourceHighlight .html-token-tag { color: #6b46d2; }
+#htmlSourceHighlight .html-token-attribute { color: #1d65ae; }
+#htmlSourceHighlight .html-token-string { color: #b84157; }
+#htmlSourceHighlight .html-token-comment { color: #8a92a9; }
+#htmlSourceHighlight .html-token-punctuation { color: #67728c; }
+#htmlSourceHighlight .html-token-doctype { color: #a16a19; }
+#htmlSourceHighlight .html-token-entity { color: #16817a; }
+
+/* The lesson preview is one page, with no inner iframe scrollbars. */
+#previewFrame { overflow: hidden; width: 100%; height: 410px; min-height: 410px; }
