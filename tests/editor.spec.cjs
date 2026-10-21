@@ -134,9 +134,10 @@ test("HTML source is pretty printed and manual whitespace is preserved on reopen
   });
   await page.locator("#tabSource").click();
   const source = page.locator("#sourceEditor");
-  await expect(source).toContainText("  <li>Раз</li>");
-  await expect(source).toContainText("  <li>Два</li>");
-  await expect(source).toContainText("    if true:\n        print(42)");
+  const formatted = await source.inputValue();
+  expect(formatted).toContain("  <li>Раз</li>");
+  expect(formatted).toContain("  <li>Два</li>");
+  expect(formatted).toContain("    if true:\n        print(42)");
   const custom = (await source.inputValue()).replace("  <li>Раз</li>", "      <li>Раз</li>");
   await source.fill(custom);
   await page.locator("#tabVisual").click();
