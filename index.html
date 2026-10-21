@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Редактор курсов — прототип</title>
-  <link rel="stylesheet" href="styles.css?v=20261021-code-modal-fix">
-  <script src="app.js?v=20261021-code-modal-fix" defer></script>
+  <link rel="stylesheet" href="styles.css?v=20261021-color-image-v1">
+  <script src="app.js?v=20261021-color-image-v1" defer></script>
 </head>
 <body>
   <div class="app">
@@ -104,6 +104,27 @@
                 <button class="tool-button" data-action="link" type="button" title="Вставить ссылку" aria-label="Вставить ссылку">🔗</button>
                 <button class="tool-button" data-command="insertHorizontalRule" type="button" title="Разделитель" aria-label="Разделитель">─</button>
                 <button class="tool-button" data-command="removeFormat" type="button" title="Очистить выделенное форматирование" aria-label="Очистить форматирование">Tx</button>
+              </div>
+              <span class="tool-divider"></span>
+              <div class="tool-group color-tool" id="colorTool">
+                <button type="button" class="tool-button color-trigger" id="textColorButton" aria-label="Цвет текста" aria-expanded="false" title="Цвет выделенного текста">
+                  <span class="color-symbol">A</span><span class="color-indicator" id="colorIndicator"></span>
+                </button>
+                <div class="color-palette" id="colorPalette" hidden>
+                  <strong>Цвет текста</strong>
+                  <div class="color-swatches" id="colorSwatches"></div>
+                  <label class="color-custom-label">Свой цвет <input type="color" id="customTextColor" value="#6759e8"></label>
+                  <button type="button" id="resetTextColor" class="button button-secondary color-reset">Сбросить цвет</button>
+                </div>
+              </div>
+              <div class="tool-group">
+                <button class="tool-button" type="button" id="insertImageButton" title="Добавить изображение из файла" aria-label="Вставить изображение">▧</button>
+                <input type="file" id="imageFileInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+              </div>
+              <div class="tool-group image-sizing" id="imageSizing" hidden>
+                <button class="tool-button" id="shrinkImage" type="button" title="Уменьшить изображение" aria-label="Уменьшить изображение">−</button>
+                <span id="imageSizeLabel">600 px</span>
+                <button class="tool-button" id="growImage" type="button" title="Увеличить изображение" aria-label="Увеличить изображение">+</button>
               </div>
               <span class="tool-divider"></span>
               <div class="tool-group">
