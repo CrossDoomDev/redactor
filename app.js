@@ -912,8 +912,12 @@
     const signX = state.corner.endsWith("e") ? 1 : -1;
     const signY = state.corner.startsWith("s") ? 1 : -1;
     const deltaX = (event.clientX - state.startX) * signX;
-    const deltaY = (event.clientY - state.startY) * signY * (state.startWidth / Math.max(1, state.startHeight));
-    const delta = Math.abs(deltaX) >= Math.abs(deltaY) ? deltaX : deltaY;
+    const deltaY = (event.clientY - state.startY) * signY;
+    // Project the pointer movement onto one fixed diagonal. The previous
+    // 'larger of X or scaled Y' approach abruptly switched axes mid-drag,
+    // causing the noticeable jump (often around 490 px).
+    const aspect = state.startHeight / Math.max(1, state.startWidth);
+    const delta = (deltaX + deltaY * aspect) / (1 + aspect * aspect);
     const minWidth = Math.min(60, state.maxWidth);
     const newWidth = Math.round(Math.max(minWidth, Math.min(state.maxWidth, state.startWidth + delta)));
     state.image.setAttribute("width", String(newWidth));
