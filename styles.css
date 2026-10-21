@@ -558,3 +558,24 @@ body { background: #f8f9fd; color: var(--ink); }
 @media (max-width: 580px) {
   #sourceEditor, #htmlSourceHighlight { padding: 16px 14px; }
 }
+
+
+/* Godot-inspired GDScript colors adapted for the unchanged light background. */
+:root {
+  --gd-keyword: #ba3156;
+  --gd-type: #087e78;
+  --gd-function: #236bae;
+  --gd-string: #98620b;
+  --gd-number: #077864;
+  --gd-constant: #008176;
+  --gd-comment: #737e92;
+  --gd-annotation: #8050b0;
+}
+.article-content pre .code-token-keyword, #codeHighlight .code-token-keyword { color: var(--gd-keyword); }
+.article-content pre .code-token-type, #codeHighlight .code-token-type { color: var(--gd-type); }
+.article-content pre .code-token-function, #codeHighlight .code-token-function { color: var(--gd-function); }
+.article-content pre .code-token-string, #codeHighlight .code-token-string { color: var(--gd-string); }
+.article-content pre .code-token-number, #codeHighlight .code-token-number { color: var(--gd-number); }
+.article-content pre .code-token-constant, #codeHighlight .code-token-constant { color: var(--gd-constant); }
+.article-content pre .code-token-comment, #codeHighlight .code-token-comment { color: var(--gd-comment); }
+.article-content pre .code-token-annotation, #codeHighlight .code-token-annotation { color: var(--gd-annotation); }
