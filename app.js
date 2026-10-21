@@ -377,6 +377,16 @@
     previewFrame.srcdoc = standaloneHtml();
   }
 
+  // Keep the last editor selection while the user operates the toolbar.
+  // A single cursor and a highlighted fragment are both formatting contexts.
+  function editorRange() {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount) {
+      const range = selection.getRangeAt(0);
+      if (editor.contains(range.commonAncestorContainer)) return range.cloneRange();
+    }
+    return savedRange && editor.contains(savedRange.commonAncestorContainer) ? savedRange.cloneRange() : null;
+  }
   function captureSelection() {
     if (mode !== "visual") return;
     const selection = window.getSelection();
@@ -385,67 +395,304 @@
     if (editor.contains(range.commonAncestorContainer)) savedRange = range.cloneRange();
   }
   function restoreSelection() {
+    const range = editorRange();
     editor.focus();
+    if (!range) return;
     const selection = window.getSelection();
     if (!selection) return;
-    if (savedRange && editor.contains(savedRange.commonAncestorContainer)) {
-      selection.removeAllRanges();
-      selection.addRange(savedRange);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  function ancestor(node, selector) {
+    let element = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
+    while (element && element !== editor) {
+      if (element.matches(selector)) return element;
+      element = element.parentElement;
     }
+    return null;
+  }
+  function selectedTextNodes(range) {
+    if (range.collapsed) return [];
+    const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+    const result = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.textContent && node.textContent.trim() && range.intersectsNode(node)) {
+        result.push(node);
+      }
+    }
+    return result;
+  }
+  function hasFormatting(range, selector) {
+    if (!range) return false;
+    const textNodes = selectedTextNodes(range);
+    if (textNodes.length) return textNodes.every((node) => !!ancestor(node, selector));
+    return !!ancestor(range.startContainer, selector);
+  }
+  function blockAlignment(node) {
+    const block = ancestor(node, 'p,div,h1,h2,h3,h4,blockquote,li,td,th,pre');
+    if (!block) return "left";
+    const style = (block.style.textAlign || block.getAttribute("align") || "").toLowerCase().trim();
+    if (style === "center" || style === "right" || style === "justify") return style;
+    return "left";
+  }
+  function selectionAlignment(range) {
+    if (!range) return "";
+    const nodes = selectedTextNodes(range);
+    const values = (nodes.length ? nodes : [range.startContainer]).map(blockAlignment);
+    return values.every((value) => value === values[0]) ? values[0] : "";
+  }
+  function currentBlockType(range) {
+    if (!range) return "p";
+    const nodes = selectedTextNodes(range);
+    const blocks = (nodes.length ? nodes : [range.startContainer])
+      .map((node) => ancestor(node, "h1,h2,h3")?.localName || "p");
+    return blocks.every((value) => value === blocks[0]) ? blocks[0] : "p";
+  }
+  function queryActiveStates() {
+    const range = editorRange();
+    if (!range || mode !== "visual") return {};
+    const alignment = selectionAlignment(range);
+    const state = {
+      bold: hasFormatting(range, "b,strong"),
+      italic: hasFormatting(range, "i,em"),
+      underline: hasFormatting(range, "u"),
+      justifyLeft: alignment === "left",
+      justifyCenter: alignment === "center",
+      justifyRight: alignment === "right",
+      insertUnorderedList: hasFormatting(range, "ul"),
+      insertOrderedList: hasFormatting(range, "ol"),
+      inlineCode: hasFormatting(range, "code"),
+      codeBlock: hasFormatting(range, "pre"),
+      quote: hasFormatting(range, "blockquote"),
+      link: hasFormatting(range, "a[href]")
+    };
+    // execCommand may hold a pending inline style at an empty caret.
+    if (range.collapsed && window.getSelection()?.rangeCount) {
+      ["bold", "italic", "underline"].forEach((command) => {
+        try { state[command] ||= !!document.queryCommandState(command); } catch (_) { /* browser-specific */ }
+      });
+    }
+    return state;
+  }
+  function setToolbarState() {
+    const range = mode === "visual" ? editorRange() : null;
+    const states = queryActiveStates();
+    formatbar.querySelectorAll("button").forEach((button) => {
+      const key = button.dataset.command || button.dataset.action;
+      if (!key) return;
+      const active = !!states[key];
+      button.classList.toggle("active", active);
+      if (["bold", "italic", "underline", "justifyLeft", "justifyCenter",
+        "justifyRight", "insertUnorderedList", "insertOrderedList",
+        "quote", "codeBlock", "inlineCode", "link"].includes(key)) {
+        button.setAttribute("aria-pressed", String(active));
+      }
+    });
+    $("blockType").value = currentBlockType(range);
+  }
+  function afterFormatting() {
+    captureSelection();
+    markDirty();
+    setToolbarState();
   }
   function runCommand(command, value) {
     if (mode !== "visual") return;
     restoreSelection();
-    document.execCommand(command, false, value || null);
-    captureSelection();
-    markDirty();
+    const state = queryActiveStates();
+    // Clicking the current alignment resets the block to normal left alignment.
+    if (["justifyCenter", "justifyRight"].includes(command) && state[command]) {
+      document.execCommand("justifyLeft", false, null);
+    } else {
+      document.execCommand(command, false, value || null);
+    }
+    afterFormatting();
   }
   function insertHtml(html) {
     restoreSelection();
     document.execCommand("insertHTML", false, sanitizeHtml(html));
-    captureSelection();
-    markDirty();
+    afterFormatting();
+  }
+
+  // Insert temporary zero-width marker elements and restore the exact selection
+  // afterwards. This makes it possible to unwrap selected inline formatting
+  // without stripping the other tags or losing the selection.
+  let changingSelection = false;
+  function withSelectionMarkers(transform) {
+    restoreSelection();
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) return;
+    const initial = selection.getRangeAt(0).cloneRange();
+    if (!editor.contains(initial.commonAncestorContainer)) return;
+    changingSelection = true;
+    const collapsed = initial.collapsed;
+    const makeMarker = () => {
+      const marker = document.createElement("span");
+      marker.setAttribute("data-editor-selection-marker", "");
+      marker.setAttribute("aria-hidden", "true");
+      return marker;
+    };
+    const start = makeMarker();
+    const end = collapsed ? null : makeMarker();
+    try {
+      if (end) {
+        const atEnd = initial.cloneRange();
+        atEnd.collapse(false);
+        atEnd.insertNode(end);
+      }
+      const atStart = initial.cloneRange();
+      atStart.collapse(true);
+      atStart.insertNode(start);
+      transform(start, end);
+    } finally {
+      if (start.isConnected) {
+        const next = document.createRange();
+        next.setStartAfter(start);
+        if (end && end.isConnected) next.setEndBefore(end);
+        else next.collapse(true);
+        if (end) end.remove();
+        start.remove();
+        selection.removeAllRanges();
+        selection.addRange(next);
+      } else if (end && end.isConnected) {
+        end.remove();
+      }
+      changingSelection = false;
+      afterFormatting();
+    }
+  }
+  function unwrapElement(element) {
+    element.replaceWith(...Array.from(element.childNodes));
+  }
+  function liftMarkerOutOf(marker, selector) {
+    let wrapper;
+    while ((wrapper = ancestor(marker, selector))) {
+      const tailRange = document.createRange();
+      tailRange.selectNodeContents(wrapper);
+      tailRange.setStartAfter(marker);
+      const tail = tailRange.extractContents();
+      const remainder = wrapper.cloneNode(false);
+      remainder.appendChild(tail);
+      wrapper.after(marker, remainder);
+      if (!wrapper.hasChildNodes()) wrapper.remove();
+      if (!remainder.hasChildNodes()) remainder.remove();
+    }
+  }
+  function removeInlineFromSelection(selector) {
+    const range = editorRange();
+    if (!range) return;
+    withSelectionMarkers((start, end) => {
+      if (!end) {
+        const wrapper = ancestor(start, selector);
+        if (wrapper) unwrapElement(wrapper);
+        return;
+      }
+      liftMarkerOutOf(start, selector);
+      liftMarkerOutOf(end, selector);
+      const between = document.createRange();
+      between.setStartAfter(start);
+      between.setEndBefore(end);
+      const wrappers = Array.from(editor.querySelectorAll(selector))
+        .filter((element) => between.intersectsNode(element));
+      wrappers.forEach((wrapper) => {
+        if (wrapper.isConnected) unwrapElement(wrapper);
+      });
+    });
+  }
+  function addInlineCode() {
+    const range = editorRange();
+    if (!range) return;
+    if (range.collapsed) {
+      insertHtml("<code>код</code>");
+      return;
+    }
+    const text = range.toString();
+    if (!text.trim()) return;
+    withSelectionMarkers((start, end) => {
+      const selectedRange = document.createRange();
+      selectedRange.setStartAfter(start);
+      selectedRange.setEndBefore(end);
+      const extracted = selectedRange.extractContents();
+      // Inline code may not contain paragraph/list elements.
+      if (Array.from(extracted.querySelectorAll("p,div,h1,h2,h3,ul,ol,li,pre,blockquote")).length) {
+        start.after(document.createTextNode(text));
+        toast("Для нескольких абзацев используй «Блок кода».");
+        return;
+      }
+      const code = document.createElement("code");
+      code.appendChild(extracted);
+      start.after(code);
+    });
+  }
+  function clearBlockquote(element) {
+    const children = Array.from(element.childNodes);
+    const hasBlocks = children.some((node) => node.nodeType === 1
+      && /^(P|DIV|H1|H2|H3|UL|OL|PRE|BLOCKQUOTE)$/.test(node.nodeName));
+    if (hasBlocks) unwrapElement(element);
+    else {
+      const paragraph = document.createElement("p");
+      paragraph.append(...children);
+      element.replaceWith(paragraph);
+    }
+  }
+  function clearPre(element) {
+    const paragraph = document.createElement("p");
+    const appendTextLines = (value) => {
+      value.split("\n").forEach((line, index) => {
+        if (index) paragraph.appendChild(document.createElement("br"));
+        if (line) paragraph.appendChild(document.createTextNode(line));
+      });
+    };
+    const process = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) appendTextLines(node.textContent || "");
+      else if (node.nodeType === Node.ELEMENT_NODE && node.hasAttribute("data-editor-selection-marker")) paragraph.appendChild(node);
+      else if (node.nodeType === Node.ELEMENT_NODE) Array.from(node.childNodes).forEach(process);
+    };
+    Array.from(element.childNodes).forEach(process);
+    element.replaceWith(paragraph);
+  }
+  function removeBlockFormat(selector, clear) {
+    withSelectionMarkers((start, end) => {
+      const range = document.createRange();
+      range.setStartAfter(start);
+      if (end) range.setEndBefore(end);
+      else range.collapse(true);
+      const targets = Array.from(editor.querySelectorAll(selector))
+        .filter((element) => !end
+          ? element.contains(start)
+          : (range.intersectsNode(element) || element.contains(start) || element.contains(end)));
+      targets.forEach((element) => { if (element.isConnected) clear(element); });
+    });
   }
   function specialAction(action) {
     if (mode !== "visual") return;
     restoreSelection();
+    const states = queryActiveStates();
     const selection = window.getSelection();
-    const text = selection && selection.rangeCount ? selection.toString() : "";
+    const selectedText = selection && selection.rangeCount ? selection.toString() : "";
     if (action === "inlineCode") {
-      insertHtml("<code>" + escapeHtml(text || "код") + "</code>");
+      if (states.inlineCode) removeInlineFromSelection("code");
+      else addInlineCode();
     } else if (action === "quote") {
-      runCommand("formatBlock", "blockquote");
+      if (states.quote) removeBlockFormat("blockquote", clearBlockquote);
+      else runCommand("formatBlock", "blockquote");
     } else if (action === "codeBlock") {
-      insertHtml("<pre><code>" + escapeHtml(text || "Введите код...") + "</code></pre><p></p>");
+      if (states.codeBlock) removeBlockFormat("pre", clearPre);
+      else insertHtml("<pre><code>" + escapeHtml(selectedText || "Введите код...") + "</code></pre><p></p>");
     } else if (action === "link") {
+      if (states.link) {
+        removeInlineFromSelection("a[href]");
+        return;
+      }
       const raw = window.prompt("Адрес ссылки (https://...):", "https://");
       if (raw === null) return;
       const url = safeLink(raw);
       if (!url) { toast("Разрешены ссылки http, https, mailto или внутренние ссылки."); return; }
       restoreSelection();
-      if (text.trim()) document.execCommand("createLink", false, url);
+      if (selectedText.trim()) document.execCommand("createLink", false, url);
       else insertHtml('<a href="' + escapeHtml(url) + '">' + escapeHtml(url) + "</a>");
-      markDirty();
+      afterFormatting();
     }
-  }
-  function setToolbarState() {
-    if (mode !== "visual") return;
-    ["bold", "italic", "underline", "insertUnorderedList", "insertOrderedList"].forEach((command) => {
-      const button = formatbar.querySelector('[data-command="' + command + '"]');
-      if (button) button.classList.toggle("active", document.queryCommandState(command));
-    });
-    const selection = window.getSelection();
-    if (!selection || !selection.rangeCount) return;
-    let node = selection.anchorNode;
-    if (node && node.nodeType === Node.TEXT_NODE) node = node.parentNode;
-    while (node && node !== editor) {
-      if (["P", "H1", "H2", "H3"].includes(node.nodeName)) {
-        $("blockType").value = node.nodeName.toLowerCase();
-        return;
-      }
-      node = node.parentNode;
-    }
-    $("blockType").value = "p";
   }
 
   function download(content, fileName, mime) {
