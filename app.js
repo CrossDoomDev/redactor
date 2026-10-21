@@ -20,6 +20,10 @@
   let saveTimer = null;
   let toastTimer = null;
   let savedRange = null;
+  let sourceSnapshot = null;
+  let pendingInlineCode = false;
+  let editingLink = null;
+  let linkRange = null;
 
   function escapeHtml(value) {
     return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -103,6 +107,36 @@
     }
     Array.from(parsed.body.childNodes).forEach((child) => appendClean(child, result));
     return result.innerHTML;
+  }
+
+  // Pretty-print element structure without changing meaningful inline spaces
+  // or the exact indentation and line breaks inside <pre><code>.
+  const BLOCK_TAGS = new Set(["p", "div", "h1", "h2", "h3", "h4", "ul", "ol",
+    "li", "blockquote", "pre", "table", "thead", "tbody", "tfoot", "tr",
+    "td", "th", "figure", "figcaption", "hr"]);
+  function prettyHtml(html) {
+    const tree = new DOMParser().parseFromString(sanitizeHtml(html), "text/html");
+    const indent = (level) => "  ".repeat(level);
+    const serialize = (node, level) => {
+      if (node.nodeType === Node.TEXT_NODE) return escapeHtml(node.textContent || "");
+      if (node.nodeType !== Node.ELEMENT_NODE) return "";
+      const tag = node.localName.toLowerCase();
+      const attrs = Array.from(node.attributes)
+        .map((attribute) => " " + attribute.name + '="' + escapeHtml(attribute.value) + '"').join("");
+      const open = "<" + tag + attrs + ">";
+      if (tag === "hr" || tag === "br") return open;
+      // Code whitespace must be reproduced byte-for-byte as text content.
+      if (tag === "pre") return open + Array.from(node.childNodes).map((child) => serialize(child, level + 1)).join("") + "</pre>";
+      const children = Array.from(node.childNodes);
+      const hasBlockChildren = children.some((child) => child.nodeType === Node.ELEMENT_NODE && BLOCK_TAGS.has(child.localName.toLowerCase()));
+      if (!hasBlockChildren) return open + children.map((child) => serialize(child, level + 1)).join("") + "</" + tag + ">";
+      const lines = children.filter((child) => !(child.nodeType === Node.TEXT_NODE && !child.textContent.trim()))
+        .map((child) => indent(level + 1) + serialize(child, level + 1));
+      return open + (lines.length ? "\n" + lines.join("\n") + "\n" + indent(level) : "") + "</" + tag + ">";
+    };
+    return Array.from(tree.body.childNodes)
+      .filter((node) => node.nodeType !== Node.TEXT_NODE || node.textContent.trim())
+      .map((node) => serialize(node, 0)).join("\n");
   }
 
   function inlineMarkdown(raw) {
@@ -328,7 +362,9 @@
     const lesson = selectedLesson();
     lessonTitle.value = lesson.title;
     editor.innerHTML = sanitizeHtml(lesson.html);
-    sourceEditor.value = sanitizeHtml(lesson.html);
+    sourceEditor.value = prettyHtml(lesson.html);
+    sourceSnapshot = sanitizeHtml(lesson.html);
+    pendingInlineCode = false;
     savedRange = null;
     updateCount();
     renderLessons();
@@ -346,8 +382,18 @@
   function setMode(next) {
     if (!panels[next]) return;
     if (next !== mode) {
-      if (mode === "source") editor.innerHTML = sanitizeHtml(sourceEditor.value);
-      if (mode === "visual") sourceEditor.value = sanitizeHtml(editor.innerHTML);
+      if (mode === "source") {
+        editor.innerHTML = sanitizeHtml(sourceEditor.value);
+        sourceSnapshot = sanitizeHtml(editor.innerHTML);
+      }
+      if (next === "source") {
+        const html = sanitizeHtml(editor.innerHTML);
+        // Leave manually entered line breaks and indentation untouched if
+        // the lesson hasn't changed in the visual editor.
+        if (html !== sourceSnapshot) sourceEditor.value = prettyHtml(html);
+        sourceSnapshot = html;
+      }
+      pendingInlineCode = false;
     }
     mode = next;
     tabs.forEach((tab) => {
@@ -359,7 +405,6 @@
     Object.keys(panels).forEach((name) => { panels[name].hidden = name !== mode; });
     formatbar.querySelectorAll("button,select").forEach((control) => { control.disabled = mode !== "visual"; });
     formatbar.style.opacity = mode === "visual" ? "1" : ".52";
-    if (mode === "source") sourceEditor.value = sanitizeHtml(editor.innerHTML);
     if (mode === "preview") updatePreview();
     $("editorHint").textContent = mode === "visual"
       ? "💡 Совет: скопируй оформленный ответ ChatGPT и вставь его с помощью Ctrl+V."
@@ -372,7 +417,7 @@
   const previewCss = 'body{font:15px/1.8 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#354158;max-width:780px;margin:30px auto;padding:0 26px;overflow-wrap:anywhere}h1,h2,h3{color:#263149;line-height:1.3}h1{font-size:28px}h2{font-size:22px}h3{font-size:18px}p{margin:0 0 15px}a{color:#6355df}li{margin-bottom:7px}blockquote{border-left:4px solid #8575f1;background:#f6f5ff;margin:18px 0;padding:12px 19px}pre{padding:18px;background:#222a3d;color:#f4f6ff;border-radius:10px;white-space:pre-wrap;overflow-x:auto}code{font:13px Consolas,monospace;background:#eff0fb;padding:2px 5px;border-radius:4px}pre code{background:none;padding:0;color:inherit}table{width:100%;border-collapse:collapse}td,th{padding:8px 10px;border:1px solid #dce1ea;text-align:left}th{background:#f6f7fb}hr{border:0;border-top:1px solid #ddd}';
   function standaloneHtml() {
     const title = lessonTitle.value.trim() || "Урок";
-    const html = currentHtml();
+    const html = prettyHtml(currentHtml());
     return '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escapeHtml(title) + '</title>\n<style>' + previewCss + '</style>\n</head>\n<body>\n' + html + '\n</body>\n</html>';
   }
   function updatePreview() {
@@ -455,7 +500,8 @@
   }
   function queryActiveStates() {
     const range = editorRange();
-    if (!range || mode !== "visual") return {};
+    if (mode !== "visual") return {};
+    if (!range) return { inlineCode: pendingInlineCode };
     const alignment = selectionAlignment(range);
     const state = {
       bold: hasFormatting(range, "b,strong"),
@@ -466,7 +512,7 @@
       justifyRight: alignment === "right",
       insertUnorderedList: hasFormatting(range, "ul"),
       insertOrderedList: hasFormatting(range, "ol"),
-      inlineCode: hasFormatting(range, "code") && !hasFormatting(range, "pre"),
+      inlineCode: pendingInlineCode || (hasFormatting(range, "code") && !hasFormatting(range, "pre")),
       codeBlock: hasFormatting(range, "pre"),
       quote: hasFormatting(range, "blockquote"),
       link: hasFormatting(range, "a[href]")
@@ -615,7 +661,8 @@
     const range = editorRange();
     if (!range) return;
     if (range.collapsed) {
-      insertHtml("<code>код</code>");
+      pendingInlineCode = true;
+      setToolbarState();
       return;
     }
     const text = range.toString();
