@@ -714,6 +714,7 @@
     formatbar.querySelectorAll("button,select").forEach((control) => { control.disabled = mode !== "visual"; });
     formatbar.style.opacity = mode === "visual" ? "1" : ".52";
     if (mode === "preview") updatePreview();
+    else { previewObserver?.disconnect(); previewObserver = null; }
     $("editorHint").textContent = mode === "visual"
       ? "💡 Совет: скопируй оформленный ответ ChatGPT и вставь его с помощью Ctrl+V."
       : mode === "source"
@@ -723,16 +724,53 @@
     setToolbarState();
     positionImageResizeOverlay();
   }
-  const previewCss = 'body{font:16px/1.8 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#4f5b7e;max-width:780px;margin:34px auto;padding:0 26px;overflow-wrap:anywhere}h1,h2,h3{color:#101735;font-weight:800;letter-spacing:-.035em;text-wrap:pretty}h1{font-size:48px;line-height:1.17;margin:32px 0 19px}h2{font-size:36px;line-height:1.23;margin:35px 0 17px}h3{font-size:28px;line-height:1.32;margin:28px 0 14px}p{margin:0 0 18px}a{color:#6251e5}li{margin-bottom:7px}blockquote{border-left:4px solid #8876ff;background:#f5f3ff;margin:18px 0;padding:12px 19px}pre{padding:19px;border:1px solid #e9e4ff;background:#f4f1ff;color:#27365d;border-radius:11px;white-space:pre-wrap;overflow-x:auto;font:13px/1.68 Consolas,monospace}code{font:13px Consolas,monospace;background:#f0edff;color:#5746bd;padding:2px 5px;border-radius:4px}pre code{background:none;padding:0;color:inherit}table{width:100%;border-collapse:collapse}td,th{padding:8px 10px;border:1px solid #dce1ea;text-align:left}th{background:#f6f7fb}hr{border:0;border-top:1px solid #ddd}figure{margin:16px 0;max-width:100%}figure img{display:inline-block;max-width:100%;height:auto;border-radius:5px}.code-token-keyword{color:#633df2}.code-token-string{color:#d13c4a}.code-token-number{color:#a05d0d}.code-token-comment{color:#8990b2}.code-token-constant{color:#2069c7}.code-token-function{color:#195aaf}@media(max-width:580px){h1{font-size:31px}h2{font-size:26px}h3{font-size:22px}}';
+  const previewCss = 'body{font:16px/1.8 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#4f5b7e;max-width:780px;margin:34px auto;padding:0 26px;overflow-wrap:anywhere}h1,h2,h3{color:#101735;font-weight:800;letter-spacing:-.035em;text-wrap:pretty}h1{font-size:36px;line-height:1.2;margin:29px 0 17px}h2{font-size:28px;line-height:1.27;margin:31px 0 15px}h3{font-size:22px;line-height:1.35;margin:26px 0 13px}p{margin:0 0 18px}a{color:#6251e5}li{margin-bottom:7px}blockquote{border-left:4px solid #8876ff;background:#f5f3ff;margin:18px 0;padding:12px 19px}pre{padding:19px;border:1px solid #e9e4ff;background:var(--code-surface);color:var(--code-ink);border-radius:11px;white-space:pre-wrap;overflow:visible;overflow-wrap:anywhere;word-break:break-word;font:13px/1.68 Consolas,monospace}code{font:13px Consolas,monospace;background:#f0edff;color:#5746bd;padding:2px 5px;border-radius:4px}pre code{background:none;padding:0;color:inherit}table{width:100%;border-collapse:collapse}td,th{padding:8px 10px;border:1px solid #dce1ea;text-align:left}th{background:#f6f7fb}hr{border:0;border-top:1px solid #ddd}figure{margin:16px 0;max-width:100%}figure img{display:inline-block;max-width:100%;height:auto;border-radius:5px}.code-token-keyword{color:#633df2}.code-token-string{color:#d13c4a}.code-token-number{color:#a05d0d}.code-token-comment{color:#8990b2}.code-token-constant{color:#2069c7}.code-token-function{color:#195aaf}@media(max-width:580px){h1{font-size:30px}h2{font-size:25px}h3{font-size:20px}}';
+  function previewCodeThemeCss() {
+    // The iframe and editor derive code surfaces from the SAME CSS variables.
+    const styles = getComputedStyle(document.documentElement);
+    return ":root{" + [
+      ["--code-surface", "#f4f1ff"],
+      ["--code-header", "#eae6fe"],
+      ["--code-ink", "#27365d"]
+    ].map(([name, fallback]) => {
+      const value = styles.getPropertyValue(name).trim();
+      return name + ":" + (/^#[0-9a-f]{3,8}$/i.test(value) ? value : fallback) + ";";
+    }).join("") + "}";
+  }
+  let previewObserver = null;
+  function sizePreviewFrame() {
+    if (mode !== "preview") return;
+    const doc = previewFrame.contentDocument;
+    if (!doc?.body) return;
+    const computed = doc.defaultView.getComputedStyle(doc.body);
+    const top = parseFloat(computed.marginTop) || 0;
+    const bottom = parseFloat(computed.marginBottom) || 0;
+    const height = Math.max(410, Math.ceil(doc.body.getBoundingClientRect().height + top + bottom + 4));
+    previewFrame.style.height = height + "px";
+  }
+  function observePreviewSize() {
+    previewObserver?.disconnect();
+    const doc = previewFrame.contentDocument;
+    if (!doc?.body) return;
+    sizePreviewFrame();
+    previewObserver = new ResizeObserver(sizePreviewFrame);
+    previewObserver.observe(doc.body);
+    doc.querySelectorAll("img").forEach((img) => img.addEventListener("load", sizePreviewFrame, {once:true}));
+  }
+  previewFrame.addEventListener("load", observePreviewSize);
+  window.addEventListener("resize", sizePreviewFrame, {passive:true});
   function standaloneHtml() {
     const title = lessonTitle.value.trim() || "Урок";
     const html = prettyHtml(currentHtml());
     const rendered = document.createElement("div");
     rendered.innerHTML = html;
     prepareCodeBlocks(rendered, false);
-    return '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escapeHtml(title) + '</title>\n<style>' + previewCss + '</style>\n</head>\n<body>\n' + rendered.innerHTML + '\n</body>\n</html>';
+    return '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escapeHtml(title) + '</title>\n<style>' + previewCodeThemeCss() + previewCss + '</style>\n</head>\n<body>\n' + rendered.innerHTML + '\n</body>\n</html>';
   }
   function updatePreview() {
+    previewObserver?.disconnect();
+    previewObserver = null;
+    previewFrame.style.height = "410px";
     previewFrame.srcdoc = standaloneHtml();
   }
 
