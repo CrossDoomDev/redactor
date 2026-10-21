@@ -64,15 +64,86 @@ test("quote button is active inside a quote and toggles it off without nesting",
   await expect(quoteButton).toHaveAttribute("aria-pressed", "false");
 });
 
-test("link is highlighted and removed without deleting its text", async ({ page }) => {
+test("existing link opens populated dialog; editing and removal preserve text", async ({ page }) => {
   await putSelection(page, '<p>Откройте <a href="https://godotengine.org">документацию</a>.</p>', "a", 3);
   const link = page.locator('[data-action="link"]');
   await expect(link).toHaveAttribute("aria-pressed", "true");
   await link.click();
+  await expect(page.locator("#linkDialog")).toBeVisible();
+  await expect(page.locator("#editor a")).toHaveCount(1);
+  await expect(page.locator("#linkText")).toHaveValue("документацию");
+  await expect(page.locator("#linkUrl")).toHaveValue("https://godotengine.org");
+  await page.locator("#linkUrl").fill("https://docs.godotengine.org/");
+  await page.locator("#linkApply").click();
+  await expect(page.locator("#editor a")).toHaveAttribute("href", "https://docs.godotengine.org/");
+  await putSelection(page, '<p>Откройте <a href="https://docs.godotengine.org/">документацию</a>.</p>', "a", 3);
+  await link.click();
+  await page.locator("#linkRemove").click();
   await expect(page.locator("#editor a")).toHaveCount(0);
   await expect(page.locator("#editor")).toContainText("документацию");
   await expect(link).toHaveAttribute("aria-pressed", "false");
 });
+
+test("create link to selected text and cancel never removes existing link", async ({ page }) => {
+  await putSelection(page, "<p>Сайт Godot полезен</p>", "p", 5, 10);
+  await page.locator('[data-action="link"]').click();
+  await expect(page.locator("#linkText")).toHaveValue("Godot");
+  await page.locator("#linkUrl").fill("https://godotengine.org/");
+  await page.locator("#linkApply").click();
+  await expect(page.locator("#editor a")).toHaveText("Godot");
+  await expect(page.locator("#editor a")).toHaveAttribute("href", "https://godotengine.org/");
+  await putSelection(page, '<p>Сайт <a href="https://godotengine.org/">Godot</a> полезен</p>', "a", 1);
+  await page.locator('[data-action="link"]').click();
+  await page.locator("#linkCancel").click();
+  await expect(page.locator("#editor a")).toHaveText("Godot");
+});
+
+test("code button at empty caret enables typing, does not insert word code, then exits style", async ({ page }) => {
+  await putSelection(page, "<p>Начало </p>", "p", 7);
+  const button = page.locator('[data-action="inlineCode"]');
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#editor code")).toHaveCount(0);
+  await expect(page.locator("#editor")).not.toContainText("код");
+  await page.keyboard.type("my_var");
+  await expect(page.locator("#editor code")).toHaveText("my_var");
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.type(" after");
+  await expect(page.locator("#editor code")).toHaveText("my_var");
+  await expect(page.locator("#editor")).toContainText("my_var after");
+});
+
+test("empty code mode can be cancelled without modifying content", async ({ page }) => {
+  await putSelection(page, "<p>Пример</p>", "p", 3);
+  const button = page.locator('[data-action="inlineCode"]');
+  const original = await page.locator("#editor").innerHTML();
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "false");
+  expect(await page.locator("#editor").innerHTML()).toBe(original);
+});
+
+test("HTML source is pretty printed and manual whitespace is preserved on reopening", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor = document.getElementById("editor");
+    editor.innerHTML = "<h2>Начало</h2><ul><li>Раз</li><li>Два</li></ul><pre><code>    if true:\n        print(42)</code></pre>";
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.locator("#tabSource").click();
+  const source = page.locator("#sourceEditor");
+  await expect(source).toContainText("  <li>Раз</li>");
+  await expect(source).toContainText("  <li>Два</li>");
+  await expect(source).toContainText("    if true:\n        print(42)");
+  const custom = (await source.inputValue()).replace("  <li>Раз</li>", "      <li>Раз</li>");
+  await source.fill(custom);
+  await page.locator("#tabVisual").click();
+  await page.locator("#tabSource").click();
+  expect(await source.inputValue()).toContain("      <li>Раз</li>");
+});
+
 
 test("inline code toggles only the selected part and preserves surrounding code", async ({ page }) => {
   await putSelection(page, "<p><code>abcdef</code></p>", "code", 2, 4);
