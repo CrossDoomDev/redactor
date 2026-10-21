@@ -332,6 +332,7 @@
     savedRange = null;
     updateCount();
     renderLessons();
+    setToolbarState();
   }
   function switchLesson(id) {
     if (project.activeId === id) return;
@@ -366,6 +367,7 @@
         ? "Безопасность: разрешены текстовые теги, ссылки, таблицы и выравнивание; скрипты удаляются."
         : "Так урок будет выглядеть при публикации в HTML.";
     updateCount();
+    setToolbarState();
   }
   const previewCss = 'body{font:15px/1.8 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#354158;max-width:780px;margin:30px auto;padding:0 26px;overflow-wrap:anywhere}h1,h2,h3{color:#263149;line-height:1.3}h1{font-size:28px}h2{font-size:22px}h3{font-size:18px}p{margin:0 0 15px}a{color:#6355df}li{margin-bottom:7px}blockquote{border-left:4px solid #8575f1;background:#f6f5ff;margin:18px 0;padding:12px 19px}pre{padding:18px;background:#222a3d;color:#f4f6ff;border-radius:10px;white-space:pre-wrap;overflow-x:auto}code{font:13px Consolas,monospace;background:#eff0fb;padding:2px 5px;border-radius:4px}pre code{background:none;padding:0;color:inherit}table{width:100%;border-collapse:collapse}td,th{padding:8px 10px;border:1px solid #dce1ea;text-align:left}th{background:#f6f7fb}hr{border:0;border-top:1px solid #ddd}';
   function standaloneHtml() {
@@ -432,8 +434,10 @@
   function blockAlignment(node) {
     const block = ancestor(node, 'p,div,h1,h2,h3,h4,blockquote,li,td,th,pre');
     if (!block) return "left";
-    const style = (block.style.textAlign || block.getAttribute("align") || "").toLowerCase().trim();
-    if (style === "center" || style === "right" || style === "justify") return style;
+    // Computed style includes inherited alignment from surrounding divs,
+    // which is common in HTML pasted from ChatGPT and other rich editors.
+    const alignment = window.getComputedStyle(block).textAlign.toLowerCase();
+    if (alignment === "center" || alignment === "right" || alignment === "justify") return alignment;
     return "left";
   }
   function selectionAlignment(range) {
@@ -462,7 +466,7 @@
       justifyRight: alignment === "right",
       insertUnorderedList: hasFormatting(range, "ul"),
       insertOrderedList: hasFormatting(range, "ol"),
-      inlineCode: hasFormatting(range, "code"),
+      inlineCode: hasFormatting(range, "code") && !hasFormatting(range, "pre"),
       codeBlock: hasFormatting(range, "pre"),
       quote: hasFormatting(range, "blockquote"),
       link: hasFormatting(range, "a[href]")
@@ -806,7 +810,7 @@
     insertHtml(html);
     toast(rich ? "HTML-разметка из буфера вставлена." : $("markdownToggle").checked ? "Текст вставлен, Markdown преобразован." : "Текст вставлен без форматирования.");
   });
-  editor.addEventListener("input", markDirty);
+  editor.addEventListener("input", () => { markDirty(); setToolbarState(); });
   sourceEditor.addEventListener("input", markDirty);
   lessonTitle.addEventListener("input", () => {
     selectedLesson().title = lessonTitle.value.trim() || "Без названия";
@@ -816,7 +820,7 @@
   editor.addEventListener("keyup", () => { captureSelection(); setToolbarState(); });
   editor.addEventListener("mouseup", () => { captureSelection(); setToolbarState(); });
   document.addEventListener("selectionchange", () => {
-    if (mode === "visual") { captureSelection(); setToolbarState(); }
+    if (mode === "visual" && !changingSelection) { captureSelection(); setToolbarState(); }
   });
   formatbar.addEventListener("mousedown", (event) => {
     if (event.target.closest("button")) event.preventDefault();
