@@ -234,28 +234,47 @@ button:disabled { opacity: .5; cursor: default; }
 .code-language label { font-size: 11px; font-weight: 700; color: #7c869d; }
 .code-language select { border: 1px solid #dfe3f0; background: white; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
 .code-modal-info { color: #8b97ad; font-size: 11px; line-height: 1.6; margin: 0 0 12px; }
-#codeTextarea, #codePreview {
-  width: 100%; tab-size: 4; font-family: "Cascadia Code",Consolas,"Courier New",monospace;
-  font-size: 13px; line-height: 1.6; white-space: pre; letter-spacing: 0;
+.code-input-shell {
+  position: relative; background: #222a3d; border-radius: 10px;
 }
-#codeTextarea { padding: 18px 20px; color: #e7eafd; background: #222a3d; border: 1px solid #414d6a;
-  border-radius: 10px; outline-color: #a59cfb; height: clamp(185px,32vh,320px); resize: vertical; overflow: auto; }
-#codeTextarea::placeholder { color: #8390ab; }
-.code-preview-title { font-size: 10px; letter-spacing: 1px; font-weight: 800; color: #7e88a0; margin: 18px 0 7px; text-transform: uppercase; }
-#codePreview { box-sizing: border-box; padding: 15px 20px; color: #e7eafd; background: #222a3d;
-  margin: 0; border-radius: 9px; overflow: auto; min-height: 85px; max-height: 160px; }
+#codeTextarea, #codeHighlight {
+  box-sizing: border-box; font-family: "Cascadia Code",Consolas,"Courier New",monospace;
+  font-size: 13px; font-weight: 400; line-height: 1.6; letter-spacing: 0;
+  tab-size: 4; white-space: pre; text-align: left;
+  padding: 18px 20px; border: 1px solid transparent;
+  overflow-wrap: normal; word-break: normal; overflow-x: auto;
+}
+#codeTextarea {
+  display: block; position: relative; z-index: 2; width: 100%;
+  height: clamp(260px,49vh,520px); resize: vertical;
+  margin: 0; border-color: #414d6a; border-radius: 10px;
+  background: transparent; color: transparent;
+  -webkit-text-fill-color: transparent; caret-color: #f8faff;
+  outline-color: #a59cfb; overflow: auto;
+}
+#codeTextarea::selection { background: rgba(118,111,234,.55); }
+#codeTextarea::placeholder {
+  color: #8390ab; -webkit-text-fill-color: #8390ab;
+}
+#codeHighlight {
+  position: absolute; z-index: 1; inset: 0; margin: 0; border-radius: 10px;
+  color: #e7eafd; background: #222a3d;
+  pointer-events: none; overflow: auto; scrollbar-width: none;
+}
+#codeHighlight::-webkit-scrollbar { display: none; }
+#codeHighlight code { font: inherit; white-space: inherit; background: none; color: inherit; padding: 0; }
 .code-modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 11px; padding-top: 20px; }
 .code-modal-note { color: #9ba6ba; font-size: 11px; margin-right: auto; }
-.article-content pre .code-token-keyword, #codePreview .code-token-keyword { color: #c8a4ff; }
-.article-content pre .code-token-string, #codePreview .code-token-string { color: #a6e3ad; }
-.article-content pre .code-token-number, #codePreview .code-token-number { color: #ffce83; }
-.article-content pre .code-token-comment, #codePreview .code-token-comment { color: #8694ac; }
-.article-content pre .code-token-constant, #codePreview .code-token-constant { color: #8ed8ff; }
-.article-content pre .code-token-function, #codePreview .code-token-function { color: #89c9f9; }
+.article-content pre .code-token-keyword, #codeHighlight .code-token-keyword { color: #c8a4ff; }
+.article-content pre .code-token-string, #codeHighlight .code-token-string { color: #a6e3ad; }
+.article-content pre .code-token-number, #codeHighlight .code-token-number { color: #ffce83; }
+.article-content pre .code-token-comment, #codeHighlight .code-token-comment { color: #8694ac; }
+.article-content pre .code-token-constant, #codeHighlight .code-token-constant { color: #8ed8ff; }
+.article-content pre .code-token-function, #codeHighlight .code-token-function { color: #89c9f9; }
 @media(max-width:580px) {
   .code-form { padding: 17px; }
   .code-modal-header { align-items: stretch; flex-direction: column; }
   .code-dialog { max-height: 93vh; }
-  #codeTextarea { height: 38vh; }
+  #codeTextarea { height: 48vh; }
   .code-modal-note { flex-basis: 100%; }
 }
