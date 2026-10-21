@@ -448,23 +448,52 @@
   }
 
   // Display-only highlighting. Source and saved HTML always contain plain code text.
-  const GD_TOKENS = /#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:func|static|if|elif|else|for|while|in|match|when|extends|class_name|class|return|break|continue|pass|var|const|enum|signal|await|yield|is|as|and|or|not|set|get|self|super|preload|load|export|onready)\b|\b(?:true|false|null|void|PI|TAU|INF|NAN)\b|\b(?:print|push_error|push_warning|assert|len|range|str|int|float|bool|Vector2|Vector3|Node|Node2D|CharacterBody2D|Sprite2D|Array|Dictionary)\b|\b\d+(?:\.\d+)?\b/g;
+  // GDScript-aware lightweight tokenizer. The palette follows the semantic
+  // categories in Godot's default editor theme, with darker variants for our
+  // light-lavender background. It never alters the user's source text.
+  const GD_KEYWORDS = new Set([
+    "extends","class_name","class","func","static","var","const","enum","signal",
+    "if","elif","else","for","while","in","match","when","return","break",
+    "continue","pass","await","yield","and","or","not","is","as",
+    "set","get","breakpoint","assert"
+  ]);
+  const GD_TYPES = new Set([
+    "void","bool","int","float","String","StringName","NodePath","Variant","Array",
+    "Dictionary","Callable","Signal","RID","Object","RefCounted","Resource",
+    "Vector2","Vector2i","Vector3","Vector3i","Vector4","Vector4i","Color",
+    "Rect2","Rect2i","Transform2D","Transform3D","Basis","Quaternion",
+    "Plane","AABB","Projection","Node","Node2D","Node3D","CanvasItem",
+    "CharacterBody2D","StaticBody2D","RigidBody2D","Area2D","Sprite2D",
+    "CollisionShape2D","CircleShape2D","PackedScene","Timer"
+  ]);
+  const GD_CONSTANTS = new Set(["true","false","null","PI","TAU","INF","NAN","self","super"]);
+  const GD_TOKEN_PATTERN = /"""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\])*"?|'(?:\\.|[^'\\])*'?|#[^\n]*|@[A-Za-z_]\w*|\b(?:0[xX][\da-fA-F_]+|0[bB][01_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?)\b|\b[A-Za-z_]\w*\b|->|:=|[+\-*\/%=<>!&|]+|[()[\]{}.,:]/g;
   function highlightCode(value, language) {
     if (language === "none") return escapeHtml(value);
-    let html = "", last = 0;
-    for (const m of value.matchAll(GD_TOKENS)) {
-      html += escapeHtml(value.slice(last, m.index));
-      const token = m[0];
+    const source = String(value);
+    let html = "", last = 0, previousWord = "";
+    for (const match of source.matchAll(GD_TOKEN_PATTERN)) {
+      html += escapeHtml(source.slice(last, match.index));
+      const token = match[0];
+      const rest = source.slice(match.index + token.length);
       const kind = token[0] === "#" ? "comment"
         : token[0] === '"' || token[0] === "'" ? "string"
         : /^\d/.test(token) ? "number"
-        : /^(true|false|null|void|PI|TAU|INF|NAN)$/.test(token) ? "constant"
-        : /^(print|push_error|push_warning|assert|len|range|str|int|float|bool|Vector2|Vector3|Node|Node2D|CharacterBody2D|Sprite2D|Array|Dictionary)$/.test(token) ? "function"
-        : "keyword";
-      html += '<span class="code-token-' + kind + '">' + escapeHtml(token) + '</span>';
-      last = m.index + token.length;
+        : token[0] === "@" ? "annotation"
+        : GD_KEYWORDS.has(token) ? "keyword"
+        : GD_TYPES.has(token) || /^[A-Z][a-z]\w*$/.test(token) ? "type"
+        : GD_CONSTANTS.has(token) ? "constant"
+        : /^[A-Za-z_]\w*$/.test(token) && (previousWord === "func" || /^\s*\(/.test(rest)) ? "function"
+        : /^[A-Z][A-Z_0-9]+$/.test(token) ? "constant" : "";
+      html += kind
+        ? '<span class="code-token-' + kind + '">' + escapeHtml(token) + '</span>'
+        : escapeHtml(token);
+      if (/^[A-Za-z_]\w*$/.test(token)) previousWord = token;
+      // Comments and string contents are atomic; no syntax inside is colored.
+      if (kind === "comment" || kind === "string") previousWord = "";
+      last = match.index + token.length;
     }
-    return html + escapeHtml(value.slice(last));
+    return html + escapeHtml(source.slice(last));
   }
   function prepareCodeBlocks(root, locked = true) {
     root.querySelectorAll("pre").forEach((pre) => {
