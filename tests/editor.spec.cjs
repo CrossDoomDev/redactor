@@ -721,3 +721,69 @@ test("minimum image width has no magnetic dead zone on reversing drag", async ({
   await page.mouse.up();
   expect(afterReverse).toBeGreaterThan(minWidth);
 });
+
+
+test("mockup typography makes H1 H2 H3 visibly larger with clear hierarchy", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor = document.getElementById("editor");
+    editor.innerHTML = "<h1>Главный заголовок</h1><h2>Заголовок раздела</h2><h3>Подраздел</h3><p>Обычный текст</p>";
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const sizes = await page.locator("#editor").evaluate((root) => {
+    const measure = (tag) => parseFloat(getComputedStyle(root.querySelector(tag)).fontSize);
+    return ["h1","h2","h3","p"].map(measure);
+  });
+  expect(sizes[0]).toBeGreaterThanOrEqual(40);
+  expect(sizes[1]).toBeGreaterThanOrEqual(29);
+  expect(sizes[2]).toBeGreaterThanOrEqual(23);
+  expect(sizes[0] - sizes[1]).toBeGreaterThanOrEqual(7);
+  expect(sizes[1] - sizes[2]).toBeGreaterThanOrEqual(5);
+  expect(sizes[3]).toBeLessThan(sizes[2]);
+});
+
+test("uniform SVG toolbar icons replace inconsistent unicode symbols without losing actions", async ({ page }) => {
+  const toolbar = page.locator("#formatbar");
+  const icons = toolbar.locator("button .tool-icon");
+  expect(await icons.count()).toBeGreaterThanOrEqual(18);
+  for (const action of ["inlineCode", "quote", "codeBlock", "link"]) {
+    const button = toolbar.locator('[data-action="' + action + '"]');
+    await expect(button.locator("svg.tool-icon use")).toHaveCount(1);
+    await expect(button.locator("svg.tool-icon")).toHaveCSS("width", "20px");
+    await expect(button.locator("svg.tool-icon")).toHaveCSS("height", "20px");
+  }
+  await expect(toolbar.locator('[data-command="justifyLeft"] svg')).toBeVisible();
+  await expect(toolbar.locator('[data-command="insertOrderedList"] svg')).toBeVisible();
+  await expect(toolbar.locator("#insertImageButton svg")).toBeVisible();
+  await expect(toolbar.locator("#textColorButton")).toBeVisible();
+});
+
+test("lavender syntax colors appear in lesson, editing dialog, and exported HTML", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor = document.getElementById("editor");
+    editor.innerHTML = "<h1>Большой заголовок</h1><pre data-language='gdscript'><code>func ready():\n    print('hello')</code></pre>";
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const pre = page.locator("#editor pre");
+  await expect(pre).toHaveCSS("background-color", "rgb(244, 241, 255)");
+  await expect(pre.locator(".code-token-keyword")).toHaveCSS("color", "rgb(99, 61, 242)");
+  await pre.dblclick();
+  await expect(page.locator("#codeDialog")).toBeVisible();
+  await expect(page.locator("#codeHighlight")).toHaveCSS("background-color", "rgb(244, 241, 255)");
+  await expect(page.locator("#codeHighlight .code-token-keyword")).toHaveCount(1);
+  await page.locator("#codeCancel").click();
+  await page.locator("#tabPreview").click();
+  const srcDoc = await page.locator("#previewFrame").getAttribute("srcdoc");
+  expect(srcDoc).toContain("background:#f4f1ff");
+  expect(srcDoc).toContain("font-size:48px");
+});
+
+test("redesigned toolbar stays sticky during page scroll", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor = document.getElementById("editor");
+    editor.innerHTML = Array.from({length: 80}, (_, i) => "<p>Абзац " + i + " в длинном уроке</p>").join("");
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    window.scrollTo(0, 550);
+  });
+  await expect.poll(() => page.locator("#formatbar").evaluate(el => Math.round(el.getBoundingClientRect().top))).toBe(72);
+  await expect(page.locator("#formatbar")).toHaveCSS("position", "sticky");
+});
