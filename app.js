@@ -28,6 +28,9 @@
   let activeCodeBlock = null;
   let codeInsertionRange = null;
   let selectedImage = null;
+  let hoveredImage = null;
+  let imageResizeState = null;
+  let imageResizeOverlay = null;
   let imageInsertRange = null;
   const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 
@@ -614,6 +617,7 @@
     pendingInlineCode = false;
     plainTypingNode = null;
     selectLessonImage(null);
+    hoveredImage = null;
     updateCount();
     renderLessons();
     setToolbarState();
@@ -645,6 +649,7 @@
       pendingInlineCode = false;
       plainTypingNode = null;
       selectLessonImage(null);
+      hoveredImage = null;
     }
     mode = next;
     tabs.forEach((tab) => {
@@ -828,10 +833,126 @@
     }
     closeColorPalette();
   }
+  // Drag handles live outside contenteditable so they never enter a lesson's
+  // sanitized HTML, localStorage, clipboard or exported documents.
+  function createImageResizeOverlay() {
+    if (imageResizeOverlay) return;
+    const overlay = document.createElement("div");
+    overlay.id = "imageResizeOverlay";
+    overlay.className = "image-resize-overlay";
+    overlay.setAttribute("aria-hidden", "true");
+    for (const corner of ["nw", "ne", "sw", "se"]) {
+      const handle = document.createElement("span");
+      handle.className = "image-resize-handle image-resize-" + corner;
+      handle.dataset.corner = corner;
+      handle.title = "Перетащить для изменения размера";
+      handle.addEventListener("pointerdown", beginImageResize);
+      overlay.appendChild(handle);
+    }
+    document.body.appendChild(overlay);
+    imageResizeOverlay = overlay;
+  }
+  function currentResizeImage() {
+    const target = imageResizeState?.image || hoveredImage || selectedImage;
+    return mode === "visual" && target?.isConnected && editor.contains(target) ? target : null;
+  }
+  function positionImageResizeOverlay() {
+    if (!imageResizeOverlay) return;
+    const img = currentResizeImage();
+    if (!img) {
+      imageResizeOverlay.classList.remove("visible");
+      return;
+    }
+    const r = img.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1 || r.bottom < -15 || r.top > window.innerHeight + 15) {
+      imageResizeOverlay.classList.remove("visible");
+      return;
+    }
+    imageResizeOverlay.style.left = r.left + "px";
+    imageResizeOverlay.style.top = r.top + "px";
+    imageResizeOverlay.style.width = r.width + "px";
+    imageResizeOverlay.style.height = r.height + "px";
+    imageResizeOverlay.classList.add("visible");
+  }
+  function beginImageResize(event) {
+    if (event.button !== 0 || mode !== "visual") return;
+    const img = currentResizeImage();
+    if (!img) return;
+    event.preventDefault();
+    event.stopPropagation();
+    selectLessonImage(img);
+    const rect = img.getBoundingClientRect();
+    const figure = img.closest("figure");
+    const available = Math.max(1, Math.floor(figure?.getBoundingClientRect().width || 2000));
+    const corner = event.currentTarget.dataset.corner;
+    imageResizeState = {
+      image: img,
+      pointerId: event.pointerId,
+      corner,
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: rect.width,
+      startHeight: rect.height,
+      originalWidth: img.getAttribute("width"),
+      maxWidth: Math.min(2000, available),
+      changed: false
+    };
+    document.body.classList.add("resizing-lesson-image");
+    window.addEventListener("pointermove", moveImageResize, true);
+    window.addEventListener("pointerup", finishImageResize, true);
+    window.addEventListener("pointercancel", cancelImageResize, true);
+    positionImageResizeOverlay();
+    updateImageControls();
+  }
+  function moveImageResize(event) {
+    const state = imageResizeState;
+    if (!state || event.pointerId !== state.pointerId) return;
+    event.preventDefault();
+    const signX = state.corner.endsWith("e") ? 1 : -1;
+    const signY = state.corner.startsWith("s") ? 1 : -1;
+    const deltaX = (event.clientX - state.startX) * signX;
+    const deltaY = (event.clientY - state.startY) * signY * (state.startWidth / Math.max(1, state.startHeight));
+    const delta = Math.abs(deltaX) >= Math.abs(deltaY) ? deltaX : deltaY;
+    const minWidth = Math.min(60, state.maxWidth);
+    const newWidth = Math.round(Math.max(minWidth, Math.min(state.maxWidth, state.startWidth + delta)));
+    state.image.setAttribute("width", String(newWidth));
+    state.changed ||= newWidth !== Math.round(state.startWidth);
+    positionImageResizeOverlay();
+    $("imageSizeLabel").textContent = newWidth + " px";
+  }
+  function removeResizeListeners() {
+    window.removeEventListener("pointermove", moveImageResize, true);
+    window.removeEventListener("pointerup", finishImageResize, true);
+    window.removeEventListener("pointercancel", cancelImageResize, true);
+    document.body.classList.remove("resizing-lesson-image");
+  }
+  function finishImageResize(event) {
+    const state = imageResizeState;
+    if (!state || event.pointerId !== state.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    removeResizeListeners();
+    imageResizeState = null;
+    positionImageResizeOverlay();
+    if (state.changed) afterFormatting();
+    else updateImageControls();
+  }
+  function cancelImageResize(event) {
+    const state = imageResizeState;
+    if (!state || event.pointerId !== state.pointerId) return;
+    if (state.originalWidth === null) state.image.removeAttribute("width");
+    else state.image.setAttribute("width", state.originalWidth);
+    removeResizeListeners();
+    imageResizeState = null;
+    positionImageResizeOverlay();
+    updateImageControls();
+  }
+
   function selectLessonImage(img) {
     if (selectedImage?.isConnected) selectedImage.classList.remove("selected-image");
     selectedImage = img && editor.contains(img) ? img : null;
     if (selectedImage) selectedImage.classList.add("selected-image");
+    positionImageResizeOverlay();
   }
   function updateImageControls() {
     const available = mode === "visual" && selectedImage?.isConnected;
@@ -842,6 +963,7 @@
     if (!selectedImage?.isConnected) return;
     const width = parseInt(selectedImage.getAttribute("width"), 10) || selectedImage.naturalWidth || 600;
     selectedImage.setAttribute("width", String(Math.min(2000, Math.max(60, Math.round(width * factor)))));
+    positionImageResizeOverlay();
     afterFormatting();
   }
 
@@ -893,6 +1015,7 @@
       return;
     }
     selectLessonImage(null);
+    hoveredImage = null;
     const html = '<figure style="text-align: left"><img src="' + escapeHtml(dataUrl) +
       '" alt="Иллюстрация урока" width="' + width + '"></figure><p></p>';
     insertHtml(html);
@@ -1430,6 +1553,35 @@
   });
   $("shrinkImage").addEventListener("click", () => scaleLessonImage(.8));
   $("growImage").addEventListener("click", () => scaleLessonImage(1.25));
+  createImageResizeOverlay();
+  editor.addEventListener("pointerover", (event) => {
+    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+    const img = target?.closest("figure.lesson-image img");
+    if (img && editor.contains(img)) {
+      hoveredImage = img;
+      positionImageResizeOverlay();
+    }
+  });
+  editor.addEventListener("pointerout", (event) => {
+    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+    const img = target?.closest("figure.lesson-image img");
+    if (img && hoveredImage === img && !imageResizeState) {
+      // Keep the corner square available when the pointer moves off the image
+      // onto the overlay handle, which lives outside the editor.
+      const related = event.relatedTarget;
+      if (related instanceof Node && imageResizeOverlay?.contains(related)) return;
+      hoveredImage = null;
+      positionImageResizeOverlay();
+    }
+  });
+  imageResizeOverlay.addEventListener("pointerleave", () => {
+    if (!imageResizeState) {
+      hoveredImage = null;
+      positionImageResizeOverlay();
+    }
+  });
+  window.addEventListener("resize", positionImageResizeOverlay, { passive: true });
+  window.addEventListener("scroll", positionImageResizeOverlay, { passive: true, capture: true });
   editor.addEventListener("click", (event) => {
     const element = event.target instanceof Element ? event.target : event.target.parentElement;
     const img = element?.closest("img");
