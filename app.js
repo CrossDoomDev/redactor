@@ -462,6 +462,39 @@
   function safeFilename(text) {
     return (text || "urok").trim().toLowerCase().replace(/[<>:"/\\|?*\x00-\x1F]/g, "").replace(/\s+/g, "-").slice(0, 60) || "urok";
   }
+  async function copyRich() {
+    const html = currentHtml();
+    const textDoc = new DOMParser().parseFromString(html, "text/html");
+    const plain = textDoc.body.textContent || "";
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === "undefined") throw new Error("rich clipboard unavailable");
+      const item = new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([plain], { type: "text/plain" })
+      });
+      await navigator.clipboard.write([item]);
+      toast("Оформленный текст скопирован — вставь его в редактор Stepik.");
+    } catch (_) {
+      const helper = document.createElement("div");
+      helper.contentEditable = "true";
+      helper.innerHTML = html;
+      helper.style.cssText = "position:fixed;left:-10000px;top:0;width:500px";
+      document.body.appendChild(helper);
+      const selection = window.getSelection();
+      const oldRange = selection && selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+      const range = document.createRange();
+      range.selectNodeContents(helper);
+      if (selection) { selection.removeAllRanges(); selection.addRange(range); }
+      const copied = document.execCommand("copy");
+      helper.remove();
+      if (selection) {
+        selection.removeAllRanges();
+        if (oldRange) selection.addRange(oldRange);
+      }
+      toast(copied ? "Оформленный текст скопирован." : "В этом браузере недоступно копирование форматирования.");
+    }
+  }
+
   async function copyHtml() {
     const html = currentHtml();
     try {
@@ -570,6 +603,7 @@
   });
   $("markdownToggle").addEventListener("change", saveNow);
   $("menuToggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
+  $("copyRich").addEventListener("click", copyRich);
   $("copyHtml").addEventListener("click", copyHtml);
   $("exportHtml").addEventListener("click", () => {
     saveNow();
