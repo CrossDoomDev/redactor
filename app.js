@@ -723,6 +723,9 @@
       tab.tabIndex = active ? 0 : -1;
     });
     Object.keys(panels).forEach((name) => { panels[name].hidden = name !== mode; });
+    // This must run AFTER the HTML panel becomes visible; hidden textareas
+    // cannot report their real wrapped scrollHeight.
+    if (mode === "source") refreshHtmlSourceHighlight();
     formatbar.querySelectorAll("button,select").forEach((control) => { control.disabled = mode !== "visual"; });
     formatbar.style.opacity = mode === "visual" ? "1" : ".52";
     if (mode === "preview") updatePreview();
