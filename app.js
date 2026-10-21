@@ -22,7 +22,7 @@
   let savedRange = null;
   let sourceSnapshot = null;
   let pendingInlineCode = false;
-  let nextPlainTextRange = null;
+  let plainTypingNode = null;
   let editingLink = null;
   let linkRange = null;
 
@@ -367,6 +367,8 @@
     sourceSnapshot = sanitizeHtml(lesson.html);
     pendingInlineCode = false;
     savedRange = null;
+    pendingInlineCode = false;
+    plainTypingNode = null;
     updateCount();
     renderLessons();
     setToolbarState();
@@ -395,6 +397,7 @@
         sourceSnapshot = html;
       }
       pendingInlineCode = false;
+      plainTypingNode = null;
     }
     mode = next;
     tabs.forEach((tab) => {
@@ -685,35 +688,42 @@
     });
   }
   function exitInlineCodeAtCaret() {
-    // A caret inside an existing code run is an editing mode, not a request
-    // to erase all the code already typed. Split the run at the caret and
-    // continue typing outside it. Selecting text still removes its code tags.
     pendingInlineCode = false;
     withSelectionMarkers((start) => { liftMarkerOutOf(start, "code"); });
-    nextPlainTextRange = editorRange();
+    editor.querySelectorAll("code").forEach((code) => {
+      if (!code.textContent && code.isConnected) code.remove();
+    });
+    const range = editorRange();
+    if (!range) return;
+    const caret = range.cloneRange();
+    const parentCode = ancestor(caret.startContainer, "code");
+    if (parentCode) {
+      caret.setStartAfter(parentCode);
+      caret.collapse(true);
+    }
+    const textNode = document.createTextNode("");
+    caret.insertNode(textNode);
+    const outside = document.createRange();
+    outside.setStart(textNode, 0);
+    outside.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(outside);
+    plainTypingNode = textNode;
+    captureSelection();
+    setToolbarState();
   }
   function insertPlainTextOutsideCode(text) {
-    if (!nextPlainTextRange || !text) return false;
-    restoreSelection();
+    if (!plainTypingNode || !plainTypingNode.isConnected || !text) return false;
     const selection = window.getSelection();
-    const range = nextPlainTextRange.cloneRange();
-    if (!editor.contains(range.commonAncestorContainer)) {
-      nextPlainTextRange = null;
-      return false;
-    }
-    const insideCode = ancestor(range.startContainer, "code");
-    if (insideCode) {
-      range.setStartAfter(insideCode);
-      range.collapse(true);
-    }
-    const plainNode = document.createTextNode(text);
-    range.insertNode(plainNode);
+    const offset = selection.anchorNode === plainTypingNode
+      ? selection.anchorOffset : plainTypingNode.length;
+    plainTypingNode.insertData(offset, text);
     const caret = document.createRange();
-    caret.setStart(plainNode, plainNode.length);
+    caret.setStart(plainTypingNode, offset + text.length);
     caret.collapse(true);
     selection.removeAllRanges();
     selection.addRange(caret);
-    nextPlainTextRange = null;
     afterFormatting();
     return true;
   }
@@ -1004,7 +1014,7 @@
   editor.addEventListener("beforeinput", (event) => {
     if (event.isComposing) return;
     if (event.inputType === "insertText" && event.data) {
-      if (nextPlainTextRange && insertPlainTextOutsideCode(event.data)) {
+      if (plainTypingNode && insertPlainTextOutsideCode(event.data)) {
         event.preventDefault();
         return;
       }
@@ -1019,12 +1029,12 @@
   editor.addEventListener("keydown", (event) => {
     if (pendingInlineCode && ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End","Escape","Enter"].includes(event.key)) {
       pendingInlineCode = false;
-      nextPlainTextRange = null;
+      plainTypingNode = null;
       setToolbarState();
     }
   });
   editor.addEventListener("click", () => {
-    nextPlainTextRange = null;
+    plainTypingNode = null;
     if (pendingInlineCode) { pendingInlineCode = false; setToolbarState(); }
   });
   $("linkForm").addEventListener("submit", updateLink);
