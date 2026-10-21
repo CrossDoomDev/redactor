@@ -213,3 +213,49 @@ button:disabled { opacity: .5; cursor: default; }
   .bottom-bar { align-items: stretch; flex-direction: column; }
   .bottom-buttons { align-self: flex-end; }
 }
+/* Protected code blocks: selectable/copyable, not directly editable. */
+.rich-editor pre[contenteditable="false"] { cursor: text; user-select: text; -webkit-user-select: text; position: relative; }
+.rich-editor pre[contenteditable="false"]:hover { outline: 2px solid rgba(152,138,251,.65); outline-offset: 2px; }
+.rich-editor pre[contenteditable="false"]::before {
+  content: "Двойной щелчок для редактирования";
+  display: block; font: 10px/1.8 Inter,sans-serif; text-align: right;
+  opacity: .6; color: #c7ccdf; user-select: none; pointer-events: none;
+}
+.code-dialog {
+  width: min(920px,calc(100vw - 28px)); max-width: none; max-height: min(94vh,900px);
+  border-radius: 17px; border: 1px solid #e4e7f4;
+  box-shadow: 0 25px 90px rgba(17,22,53,.33); background: #fff; color: #29334b; padding: 0;
+}
+.code-dialog::backdrop { background: rgba(20,26,48,.54); backdrop-filter: blur(3px); }
+.code-form { display: flex; flex-direction: column; gap: 0; padding: 27px; }
+.code-modal-header { display: flex; align-items: end; justify-content: space-between; gap: 22px; padding-bottom: 15px; }
+.code-modal-header h2 { margin: 8px 0 0; font-size: 22px; }
+.code-language { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
+.code-language label { font-size: 11px; font-weight: 700; color: #7c869d; }
+.code-language select { border: 1px solid #dfe3f0; background: white; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+.code-modal-info { color: #8b97ad; font-size: 11px; line-height: 1.6; margin: 0 0 12px; }
+#codeTextarea, #codePreview {
+  width: 100%; tab-size: 4; font-family: "Cascadia Code",Consolas,"Courier New",monospace;
+  font-size: 13px; line-height: 1.6; white-space: pre; letter-spacing: 0;
+}
+#codeTextarea { padding: 18px 20px; color: #e7eafd; background: #222a3d; border: 1px solid #414d6a;
+  border-radius: 10px; outline-color: #a59cfb; height: clamp(185px,32vh,320px); resize: vertical; overflow: auto; }
+#codeTextarea::placeholder { color: #8390ab; }
+.code-preview-title { font-size: 10px; letter-spacing: 1px; font-weight: 800; color: #7e88a0; margin: 18px 0 7px; text-transform: uppercase; }
+#codePreview { box-sizing: border-box; padding: 15px 20px; color: #e7eafd; background: #222a3d;
+  margin: 0; border-radius: 9px; overflow: auto; min-height: 85px; max-height: 160px; }
+.code-modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 11px; padding-top: 20px; }
+.code-modal-note { color: #9ba6ba; font-size: 11px; margin-right: auto; }
+.article-content pre .code-token-keyword, #codePreview .code-token-keyword { color: #c8a4ff; }
+.article-content pre .code-token-string, #codePreview .code-token-string { color: #a6e3ad; }
+.article-content pre .code-token-number, #codePreview .code-token-number { color: #ffce83; }
+.article-content pre .code-token-comment, #codePreview .code-token-comment { color: #8694ac; }
+.article-content pre .code-token-constant, #codePreview .code-token-constant { color: #8ed8ff; }
+.article-content pre .code-token-function, #codePreview .code-token-function { color: #89c9f9; }
+@media(max-width:580px) {
+  .code-form { padding: 17px; }
+  .code-modal-header { align-items: stretch; flex-direction: column; }
+  .code-dialog { max-height: 93vh; }
+  #codeTextarea { height: 38vh; }
+  .code-modal-note { flex-basis: 100%; }
+}
