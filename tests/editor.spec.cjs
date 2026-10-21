@@ -765,7 +765,7 @@ test("lavender syntax colors appear in lesson, editing dialog, and exported HTML
   });
   const pre = page.locator("#editor pre");
   await expect(pre).toHaveCSS("background-color", "rgb(244, 241, 255)");
-  await expect(pre.locator(".code-token-keyword")).toHaveCSS("color", "rgb(99, 61, 242)");
+  await expect(pre.locator(".code-token-keyword")).toHaveCSS("color", "rgb(186, 49, 86)");
   await pre.dblclick();
   await expect(page.locator("#codeDialog")).toBeVisible();
   await expect(page.locator("#codeHighlight")).toHaveCSS("background-color", "rgb(244, 241, 255)");
@@ -955,4 +955,82 @@ test("same code-surface variable colors editor, code dialog and preview", async 
     getComputedStyle(e.contentDocument.querySelector("pre")).backgroundColor)).toBe("rgb(231, 245, 255)");
   const html=await page.locator("#previewFrame").getAttribute("srcdoc");
   expect(html).toContain("--code-surface:#e7f5ff");
+});
+
+test("GDScript uses Godot-like semantic categories on the unchanged lavender background", async ({ page }) => {
+  const source = [
+    'extends StaticBody2D',
+    'var kind = "tree"',
+    'var tint = Color("4d8b74")',
+    'var actor: Node2D',
+    'var variant = 0',
+    'func _ready() -> void:',
+    '    var collider = CollisionShape2D.new()',
+    '    shape.radius = 20 if kind == "tree" else 25',
+    '    add_child(collider)',
+    '    # Draws a sprite',
+    '    return'
+  ].join("\n");
+  await page.evaluate((code) => {
+    const e = document.getElementById("editor");
+    e.innerHTML = '<pre data-language="gdscript"><code></code></pre>';
+    e.querySelector("code").textContent = code;
+    e.dispatchEvent(new Event("input", {bubbles:true}));
+  }, source);
+  const block = page.locator("#editor pre");
+  await expect(block).toHaveCSS("background-color", "rgb(244, 241, 255)");
+  await expect(block.locator(".code-token-keyword").filter({hasText:"extends"})).toHaveCSS("color", "rgb(186, 49, 86)");
+  await expect(block.locator(".code-token-type").filter({hasText:"StaticBody2D"})).toHaveCSS("color", "rgb(8, 126, 120)");
+  await expect(block.locator(".code-token-type").filter({hasText:"CollisionShape2D"})).toHaveCount(1);
+  await expect(block.locator(".code-token-function").filter({hasText:"_ready"})).toHaveCSS("color", "rgb(35, 107, 174)");
+  await expect(block.locator(".code-token-function").filter({hasText:"add_child"})).toHaveCount(1);
+  await expect(block.locator(".code-token-string").first()).toHaveCSS("color", "rgb(152, 98, 11)");
+  await expect(block.locator(".code-token-number").first()).toHaveCSS("color", "rgb(7, 120, 100)");
+  await expect(block.locator(".code-token-comment")).toHaveText("# Draws a sprite");
+  await block.dblclick();
+  const dialog = page.locator("#codeDialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.locator("#codeHighlight .code-token-type").first()).toHaveCSS("color", "rgb(8, 126, 120)");
+  await expect(page.locator("#codeHighlight .code-token-keyword").first()).toHaveCSS("color", "rgb(186, 49, 86)");
+  await page.locator("#codeCancel").click();
+  await page.locator("#tabPreview").click();
+  const actual = await page.locator("#previewFrame").evaluate((frame) => {
+    const doc = frame.contentDocument;
+    const type = doc.querySelector(".code-token-type");
+    const keyword = doc.querySelector(".code-token-keyword");
+    const pre = doc.querySelector("pre");
+    return {
+      type: getComputedStyle(type).color,
+      keyword: getComputedStyle(keyword).color,
+      background: getComputedStyle(pre).backgroundColor
+    };
+  });
+  expect(actual).toEqual({
+    type: "rgb(8, 126, 120)",
+    keyword: "rgb(186, 49, 86)",
+    background: "rgb(244, 241, 255)"
+  });
+});
+
+test("GDScript lexer keeps string/comment text intact and No Highlight disables tokens", async ({ page }) => {
+  const source = 'var text = "if var 123 # not comment" # comment\nvar x = 12.5\n@export var tint: Color';
+  await page.evaluate((code) => {
+    const editor = document.querySelector("#editor");
+    editor.innerHTML = '<pre data-language="gdscript"><code></code></pre>';
+    editor.querySelector("code").textContent = code;
+    editor.dispatchEvent(new Event("input", {bubbles: true}));
+  }, source);
+  const pre = page.locator("#editor pre");
+  await expect(pre.locator(".code-token-string")).toHaveText('"if var 123 # not comment"');
+  await expect(pre.locator(".code-token-comment")).toHaveText("# comment");
+  await expect(pre.locator(".code-token-number")).toHaveText("12.5");
+  await expect(pre.locator(".code-token-annotation")).toHaveText("@export");
+  await expect(pre.locator(".code-token-type")).toHaveText("Color");
+  await pre.dblclick();
+  await page.locator("#codeLanguage").selectOption("none");
+  await expect(page.locator("#codeHighlight [class^='code-token-']")).toHaveCount(0);
+  await expect(page.locator("#codeTextarea")).toHaveValue(source);
+  await page.locator("#codeApply").click();
+  await expect(pre.locator("[class^='code-token-']")).toHaveCount(0);
+  await expect(pre).toHaveAttribute("data-language", "none");
 });
