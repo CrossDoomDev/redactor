@@ -892,6 +892,9 @@
       corner,
       startX: event.clientX,
       startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      widthFloat: rect.width,
       startWidth: rect.width,
       startHeight: rect.height,
       originalWidth: img.getAttribute("width"),
@@ -911,15 +914,19 @@
     event.preventDefault();
     const signX = state.corner.endsWith("e") ? 1 : -1;
     const signY = state.corner.startsWith("s") ? 1 : -1;
-    const deltaX = (event.clientX - state.startX) * signX;
-    const deltaY = (event.clientY - state.startY) * signY;
-    // Project the pointer movement onto one fixed diagonal. The previous
-    // 'larger of X or scaled Y' approach abruptly switched axes mid-drag,
-    // causing the noticeable jump (often around 490 px).
+    // Accumulate the movement since the LAST pointer position, not since
+    // pointerdown. Otherwise dragging beyond an image width limit creates
+    // "dead travel": the user must come back to the old mouse coordinate
+    // before the image begins to shrink, which feels like magnetic snapping.
+    const deltaX = (event.clientX - state.lastX) * signX;
+    const deltaY = (event.clientY - state.lastY) * signY;
+    state.lastX = event.clientX;
+    state.lastY = event.clientY;
     const aspect = state.startHeight / Math.max(1, state.startWidth);
     const delta = (deltaX + deltaY * aspect) / (1 + aspect * aspect);
     const minWidth = Math.min(60, state.maxWidth);
-    const newWidth = Math.round(Math.max(minWidth, Math.min(state.maxWidth, state.startWidth + delta)));
+    state.widthFloat = Math.max(minWidth, Math.min(state.maxWidth, state.widthFloat + delta));
+    const newWidth = Math.round(state.widthFloat);
     state.image.setAttribute("width", String(newWidth));
     state.changed ||= newWidth !== Math.round(state.startWidth);
     positionImageResizeOverlay();
