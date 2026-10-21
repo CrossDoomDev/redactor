@@ -90,7 +90,7 @@ button:disabled { opacity: .5; cursor: default; }
 .page-header p { color: #99a4b7; font-size: 12px; line-height: 1.6; margin: 0; }
 .step-pill { padding: 10px 13px; border: 1px solid #e3e2ff; color: #7363d9; background: #eeecff; border-radius: 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .step-pill-dot { display: inline-block; width: 7px; height: 7px; background: #7867ea; border-radius: 50%; margin-right: 6px; }
-.editor-card { border: 1px solid #e4e8f2; border-radius: 14px; background: #fff; box-shadow: var(--shadow); overflow: hidden; }
+.editor-card { border: 1px solid #e4e8f2; border-radius: 14px; background: #fff; box-shadow: var(--shadow); overflow: visible; }
 .lesson-details { padding: 24px 28px 22px; }
 .lesson-details label { color: #949fb2; display: block; font-size: 10px; letter-spacing: 1.25px; font-weight: 800; margin-bottom: 12px; }
 .lesson-details input { width: 100%; background: #fff; color: #2c3551; border: 1px solid #e7eaf3; border-radius: 8px; padding: 14px 15px; font-size: 15px; font-weight: 600; outline-color: #a69efa; }
@@ -101,7 +101,7 @@ button:disabled { opacity: .5; cursor: default; }
 .mode-tab:hover { color: #685ce2; }
 .mode-tab.active { color: #6a5bdd; border-bottom-color: #705ef2; }
 .word-count { padding-bottom: 14px; font-size: 11px; color: #acb4c3; }
-.formatbar { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 12px 20px; min-height: 61px; background: #fbfcfe; border-bottom: 1px solid #e9ecf4; }
+.formatbar { position: sticky; top: 72px; z-index: 25; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 12px 20px; min-height: 61px; background: #fbfcfe; border-block: 1px solid #e9ecf4; box-shadow: 0 4px 12px rgba(40,49,78,.055); }
 .tool-group { display: flex; align-items: center; gap: 2px; }
 .tool-divider { height: 22px; width: 1px; background: #e3e7f1; margin: 0 8px; }
 .formatbar select { color: #59647d; border: 1px solid #e4e8f1; border-radius: 7px; padding: 8px 20px 8px 9px; background: #fff; font-size: 11px; font-weight: 700; max-width: 148px; }
@@ -278,3 +278,27 @@ button:disabled { opacity: .5; cursor: default; }
   #codeTextarea { height: 48vh; }
   .code-modal-note { flex-basis: 100%; }
 }
+
+
+/* Lesson image and text color controls */
+.color-tool { position: relative; }
+.color-trigger { display: flex; align-items: center; flex-direction: column; gap: 1px; width: 33px; }
+.color-symbol { font-weight: 800; line-height: 17px; font-size: 16px; }
+.color-indicator { display: block; width: 21px; height: 5px; background: #354158; border-radius: 3px; border: 1px solid rgba(0,0,0,.12); }
+.color-palette { position: absolute; top: calc(100% + 9px); left: 0; z-index: 42; width: 248px; padding: 15px; background: #fff; border: 1px solid #e3e7f0; box-shadow: 0 10px 28px rgba(26,41,77,.18); border-radius: 12px; }
+.color-palette strong { display: block; font-size: 12px; margin-bottom: 13px; color: #45516a; }
+.color-swatches { display: grid; grid-template-columns: repeat(6,1fr); gap: 8px; }
+.color-swatch { padding: 0; height: 28px; width: 28px; border-radius: 7px; border: 2px solid #e7e9ef; }
+.color-swatch:hover, .color-swatch:focus-visible { border-color: #8c7fff; transform: scale(1.07); }
+.color-custom-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 13px 0; font-size: 12px; color: #6f7d95; }
+.color-custom-label input { cursor: pointer; border: none; padding: 1px; height: 29px; width: 54px; background: transparent; }
+.color-reset { width: 100%; }
+.image-sizing { border-left: 1px solid #e3e7f1; padding-left: 8px; gap: 2px; }
+.image-sizing #imageSizeLabel { font-size: 10px; white-space: nowrap; min-width: 47px; text-align: center; font-variant-numeric: tabular-nums; color: #68778f; }
+.article-content figure.lesson-image { margin: 16px 0; max-width: 100%; }
+.article-content figure.lesson-image img { display: inline-block; max-width: 100%; height: auto; vertical-align: middle; cursor: pointer; border-radius: 5px; box-shadow: 0 0 0 1px rgba(32,43,72,.12); }
+.rich-editor figure.lesson-image img.selected-image { outline: 3px solid #7867ea; outline-offset: 3px; }
+.article-content figure.lesson-image[style*="text-align: center"] { text-align: center; }
+.article-content figure.lesson-image[style*="text-align: right"] { text-align: right; }
+@media (max-width: 800px) { .formatbar { top: 64px; } }
+@media (max-width: 580px) { .color-palette { left: -85px; } .image-sizing { padding-left: 3px; } }
