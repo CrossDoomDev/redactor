@@ -378,8 +378,20 @@
       pre.contains(range.startContainer) || pre.contains(range.endContainer)
       || (!range.collapsed && range.intersectsNode(pre)));
   }
-  function refreshCodePreview() {
-    $("codePreview").querySelector("code").innerHTML = highlightCode($("codeTextarea").value, $("codeLanguage").value);
+  function syncCodeHighlightScroll() {
+    const input = $("codeTextarea");
+    const display = $("codeHighlight");
+    display.scrollTop = input.scrollTop;
+    display.scrollLeft = input.scrollLeft;
+  }
+  function refreshCodeHighlight() {
+    const input = $("codeTextarea");
+    const content = input.value;
+    // A nonbreaking visual terminator keeps the last blank line visible,
+    // without changing the actual source saved in the textarea.
+    $("codeHighlight").querySelector("code").innerHTML =
+      highlightCode(content, $("codeLanguage").value) + (content.endsWith("\\n") ? " " : "");
+    syncCodeHighlightScroll();
   }
   function openCodeDialog(pre = null) {
     if (mode !== "visual") return;
@@ -389,7 +401,7 @@
     $("codeDialogTitle").textContent = activeCodeBlock ? "Редактировать многострочный код" : "Добавить многострочный код";
     $("codeTextarea").value = activeCodeBlock ? activeCodeBlock.textContent : "";
     $("codeLanguage").value = activeCodeBlock?.getAttribute("data-language") === "none" ? "none" : "gdscript";
-    refreshCodePreview();
+    refreshCodeHighlight();
     $("codeDialog").showModal();
     $("codeTextarea").focus();
   }
@@ -425,27 +437,50 @@
     }
   }
   function onCodeKeydown(event) {
-    if (event.isComposing || !["Enter", "Tab"].includes(event.key)) return;
-    event.preventDefault();
+    if (event.isComposing || !["Enter", "Tab", "Backspace"].includes(event.key)) return;
     const field = event.currentTarget;
     const value = field.value, start = field.selectionStart, end = field.selectionEnd;
     const lineStart = value.lastIndexOf("\n", start - 1) + 1;
-    if (event.key === "Enter") {
+
+    if (event.key === "Backspace") {
+      // One Backspace removes a whole indentation unit only while the caret
+      // sits in leading whitespace. Backspace within source text is native.
+      if (start !== end || start <= lineStart) return;
+      const leading = value.slice(lineStart, start);
+      if (!/^[ \t]+$/.test(leading)) return;
+      const remove = leading.endsWith("\t")
+        ? 1 : Math.min(4, (leading.match(/ +$/) || [""])[0].length);
+      if (!remove) return;
+      event.preventDefault();
+      field.setRangeText("", start - remove, start, "start");
+    } else if (event.key === "Enter") {
+      event.preventDefault();
       const line = value.slice(lineStart, start);
       const indent = (line.match(/^[ \t]*/) || [""])[0];
       const text = line.replace(/#.*$/, "").trimEnd();
       const extra = $("codeLanguage").value === "gdscript" && text.endsWith(":") ? "\t" : "";
       field.setRangeText("\n" + indent + extra, start, end, "end");
-    } else if (start === end) {
-      if (event.shiftKey) {
-        const leading = value.slice(lineStart, start);
-        if (leading.startsWith("\t")) field.setRangeText("", lineStart, lineStart + 1, "end");
-      } else field.setRangeText("\t", start, end, "end");
     } else {
-      const block = value.slice(lineStart, end);
-      const replacement = block.split("\n").map((line) => event.shiftKey
-        ? line.replace(/^\t|^ {1,4}/, "") : "\t" + line).join("\n");
-      field.setRangeText(replacement, lineStart, end, "select");
+      event.preventDefault();
+      if (start === end) {
+        if (event.shiftKey) {
+          const preceding = value.slice(lineStart, start);
+          if (preceding.endsWith("\t")) {
+            field.setRangeText("", start - 1, start, "start");
+          } else if (/^[ ]+$/.test(preceding)) {
+            const width = Math.min(4, preceding.length);
+            field.setRangeText("", start - width, start, "start");
+          }
+        } else {
+          field.setRangeText("\t", start, end, "end");
+        }
+      } else {
+        const affected = value.slice(lineStart, end);
+        const changed = affected.split("\n").map((line) => event.shiftKey
+          ? line.replace(/^\t|^ {1,4}/, "")
+          : "\t" + line).join("\n");
+        field.setRangeText(changed, lineStart, end, "select");
+      }
     }
     field.dispatchEvent(new Event("input", { bubbles: true }));
   }
@@ -1131,8 +1166,9 @@
   $("codeDialog").addEventListener("cancel", (event) => event.preventDefault());
   $("codeCancel").addEventListener("click", closeCodeDialog);
   $("codeForm").addEventListener("submit", applyCodeDialog);
-  $("codeLanguage").addEventListener("change", refreshCodePreview);
-  $("codeTextarea").addEventListener("input", refreshCodePreview);
+  $("codeLanguage").addEventListener("change", refreshCodeHighlight);
+  $("codeTextarea").addEventListener("input", refreshCodeHighlight);
+  $("codeTextarea").addEventListener("scroll", syncCodeHighlightScroll);
   $("codeTextarea").addEventListener("keydown", onCodeKeydown);
   editor.addEventListener("dblclick", (event) => {
     const pre = event.target.closest("pre");
