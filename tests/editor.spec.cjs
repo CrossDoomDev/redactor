@@ -496,3 +496,95 @@ test("malicious pasted image URLs are rejected", async ({ page }) => {
   expect(src).not.toContain("javascript:");
   expect(src).not.toContain("onerror");
 });
+
+async function prepareResizableImage(page) {
+  const pixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==";
+  await page.evaluate((pixel) => {
+    const editor = document.getElementById("editor");
+    editor.innerHTML = '<p>Выше картинки</p><figure class="lesson-image" style="text-align: left"><img width="280" alt="Пример" src="data:image/png;base64,' + pixel + '"></figure><p>Ниже картинки</p>';
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  }, pixel);
+  const img = page.locator("#editor figure.lesson-image img");
+  await expect(img).toBeVisible();
+  await img.hover();
+  await expect(page.locator("#imageResizeOverlay")).toHaveClass(/visible/);
+  return img;
+}
+async function dragImageHandle(page, corner, dx, dy) {
+  const handle = page.locator("#imageResizeOverlay .image-resize-" + corner);
+  await expect(handle).toBeVisible();
+  const rect = await handle.boundingBox();
+  const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx, y + dy, { steps: 5 });
+  await page.mouse.up();
+}
+test("image corner markers appear on hover with diagonal resize cursor", async ({ page }) => {
+  await prepareResizableImage(page);
+  const overlay = page.locator("#imageResizeOverlay");
+  await expect(overlay).toHaveClass(/visible/);
+  await expect(page.locator("#imageResizeOverlay .image-resize-handle")).toHaveCount(4);
+  await expect(page.locator("#imageResizeOverlay .image-resize-nw")).toHaveCSS("cursor", "nwse-resize");
+  await expect(page.locator("#imageResizeOverlay .image-resize-ne")).toHaveCSS("cursor", "nesw-resize");
+  const html = await page.locator("#editor").innerHTML();
+  expect(html).not.toContain("image-resize-handle");
+});
+
+test("bottom-right resize increases image width proportionally and persists through HTML mode", async ({ page }) => {
+  const img = await prepareResizableImage(page);
+  const before = await img.boundingBox();
+  await dragImageHandle(page, "se", 110, 110);
+  const after = await img.boundingBox();
+  expect(Number(await img.getAttribute("width"))).toBeGreaterThan(280);
+  expect(after.width).toBeGreaterThan(before.width);
+  expect(after.height / after.width).toBeCloseTo(before.height / before.width, 1);
+  await expect(page.locator("#imageSizeLabel")).toContainText("px");
+  await page.locator("#tabSource").click();
+  await expect(page.locator("#imageResizeOverlay")).not.toHaveClass(/visible/);
+  const html = await page.locator("#sourceEditor").inputValue();
+  expect(html).toMatch(/<img[^>]*width="3\d\d"/);
+  expect(html).not.toContain("image-resize-handle");
+  await page.locator("#tabVisual").click();
+  expect(Number(await img.getAttribute("width"))).toBeGreaterThan(280);
+});
+
+test("top-left resizing inward makes image smaller and does not change source image", async ({ page }) => {
+  const img = await prepareResizableImage(page);
+  const beforeSrc = await img.getAttribute("src");
+  await dragImageHandle(page, "nw", 70, 70);
+  const width = Number(await img.getAttribute("width"));
+  expect(width).toBeLessThan(280);
+  expect(width).toBeGreaterThanOrEqual(60);
+  expect(await img.getAttribute("src")).toBe(beforeSrc);
+});
+
+test("all four handles support pointer drag and selected image stays adjustable", async ({ page }) => {
+  const img = await prepareResizableImage(page);
+  await img.click();
+  await expect(page.locator("#imageSizing")).toBeVisible();
+  await dragImageHandle(page, "ne", 40, -30);
+  const grown = Number(await img.getAttribute("width"));
+  expect(grown).toBeGreaterThan(280);
+  await dragImageHandle(page, "sw", 40, -30);
+  const shrunk = Number(await img.getAttribute("width"));
+  expect(shrunk).toBeLessThan(grown);
+  await expect(page.locator("#imageResizeOverlay")).toHaveClass(/visible/);
+});
+
+test("corner handle overlay repositions when page scrolls", async ({ page }) => {
+  const img = await prepareResizableImage(page);
+  const before = await img.boundingBox();
+  const overlay = page.locator("#imageResizeOverlay");
+  const first = await overlay.boundingBox();
+  expect(first.x).toBeCloseTo(before.x, 0);
+  expect(first.y).toBeCloseTo(before.y, 0);
+  await page.evaluate(() => {
+    window.scrollTo(0, 150);
+    window.dispatchEvent(new Event("scroll"));
+  });
+  const second = await img.boundingBox();
+  if (second.y >= -second.height && second.y <= 800) {
+    await expect.poll(async () => (await overlay.boundingBox())?.y).toBeCloseTo(second.y, 0);
+  }
+});
