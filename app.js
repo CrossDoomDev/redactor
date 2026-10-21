@@ -688,30 +688,12 @@
     });
   }
   function exitInlineCodeAtCaret() {
+    // With only a caret (no selection), the user wants to remove inline-code
+    // styling from the ENTIRE code run, not split it at the caret.
+    // withSelectionMarkers preserves the caret position during unwrapping.
     pendingInlineCode = false;
-    withSelectionMarkers((start) => { liftMarkerOutOf(start, "code"); });
-    editor.querySelectorAll("code").forEach((code) => {
-      if (!code.textContent && code.isConnected) code.remove();
-    });
-    const range = editorRange();
-    if (!range) return;
-    const caret = range.cloneRange();
-    const parentCode = ancestor(caret.startContainer, "code");
-    if (parentCode) {
-      caret.setStartAfter(parentCode);
-      caret.collapse(true);
-    }
-    const textNode = document.createTextNode("");
-    caret.insertNode(textNode);
-    const outside = document.createRange();
-    outside.setStart(textNode, 0);
-    outside.collapse(true);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(outside);
-    plainTypingNode = textNode;
-    captureSelection();
-    setToolbarState();
+    plainTypingNode = null;
+    removeInlineFromSelection("code");
   }
   function insertPlainTextOutsideCode(text) {
     if (!plainTypingNode || !plainTypingNode.isConnected || !text) return false;
