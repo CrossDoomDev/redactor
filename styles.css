@@ -323,3 +323,130 @@ button:disabled { opacity: .5; cursor: default; }
 .image-resize-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
 .image-resize-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
 .resizing-lesson-image, .resizing-lesson-image * { user-select: none !important; -webkit-user-select: none !important; cursor: nwse-resize !important; }
+
+
+/* 2026 light-lavender editor design: spacious type, pale code surfaces,
+   and a single mathematically aligned vector icon system. */
+:root {
+  --violet: #6655ec;
+  --ink: #111938;
+  --border: #e7e9f3;
+  --shadow: 0 8px 32px rgba(29,39,86,.065);
+  --code-surface: #f4f1ff;
+  --code-header: #eae6fe;
+  --code-ink: #27365d;
+}
+body { background: #f8f9fd; color: var(--ink); }
+.brand-mark {
+  width: 40px; height: 40px; border-radius: 11px; color: white;
+  background: linear-gradient(145deg,#8275ff 0%,#634cff 100%);
+}
+.brand-icon {
+  width: 26px; height: 26px; stroke: currentColor; fill: none;
+  stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round;
+}
+.icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.topbar { box-shadow: 0 1px 5px rgba(23,35,86,.025); }
+.topbar .button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  height: 40px; border-radius: 9px; font-size: 12px;
+}
+.topbar .button-primary { background: #6755ee; border-color: #6755ee; }
+.topbar .button-primary:hover:not(:disabled) { background: #5542d7; }
+.page-header h1 { color: #151a39; font-weight: 800; }
+.editor-card { box-shadow: 0 9px 40px rgba(27,37,77,.065); }
+.formatbar {
+  gap: 5px; min-height: 62px; padding: 9px 15px;
+  background: rgba(255,255,255,.98); border-color: #e8eaf4;
+  box-shadow: 0 5px 18px rgba(22,33,74,.09);
+  backdrop-filter: blur(10px);
+}
+.tool-divider { background: #e2e5f1; height: 24px; margin-inline: 6px; }
+.tool-group { gap: 2px; }
+.tool-button {
+  width: 34px; min-width: 34px; height: 34px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #303d68; border: 1px solid transparent; border-radius: 7px;
+  line-height: 1; transition: background-color .12s, color .12s;
+}
+.tool-button:hover, .tool-button.active {
+  background: #eeebff; border-color: #e0dbff; color: #6150e7;
+}
+.tool-button .tool-icon, .topbar .tool-icon {
+  width: 20px; height: 20px; display: block; flex-shrink: 0;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.topbar .tool-icon { width: 17px; height: 17px; }
+.tool-button.strong, .tool-button.italic, .tool-button.underline,
+.tool-button.code-glyph, .tool-button.align-icon {
+  font-size: inherit; font-family: inherit; font-weight: inherit; font-style: normal; text-decoration: none;
+}
+.formatbar select { min-height: 35px; font-size: 12px; color: #293758; }
+.color-trigger { width: 34px; }
+.color-symbol { color: #303d68; }
+.color-indicator { border-radius: 3px; }
+.article-content {
+  color: #4f5b7e; font-size: 16px; line-height: 1.8;
+}
+.article-content h1, .article-content h2, .article-content h3 {
+  color: #101735; font-weight: 800; letter-spacing: -.035em;
+  overflow-wrap: anywhere; text-wrap: pretty;
+}
+.article-content h1 {
+  font-size: clamp(36px,3.5vw,48px); line-height: 1.17;
+  margin: 32px 0 19px;
+}
+.article-content h2 {
+  font-size: clamp(29px,2.8vw,36px); line-height: 1.23;
+  margin: 35px 0 17px;
+}
+.article-content h3 {
+  font-size: clamp(23px,2.2vw,28px); line-height: 1.32;
+  margin: 28px 0 14px;
+}
+.article-content h1:first-child, .article-content h2:first-child, .article-content h3:first-child { margin-top: 0; }
+.article-content p { margin-bottom: 18px; }
+.article-content a { color: #6251e5; }
+.article-content ul li::marker, .article-content ol li::marker { color: #6b58f0; }
+.article-content blockquote { background: #f5f3ff; border-color: #8876ff; }
+.article-content code:not(pre code) { background: #f0edff; color: #5746bd; }
+/* GDScript blocks in the lesson, matching the reference design. */
+.article-content pre {
+  background: var(--code-surface); color: var(--code-ink);
+  border: 1px solid #e9e4ff;
+  box-shadow: inset 0 1px 2px rgba(94,77,198,.035);
+  border-radius: 11px;
+  font: 13px/1.68 "Cascadia Code",Consolas,monospace;
+}
+/* The rich editor's code dialog uses the same paper-like colors. */
+.code-dialog { border-color: #e2e0f3; box-shadow: 0 24px 75px rgba(31,34,78,.24); }
+.code-input-shell { background: var(--code-surface); border-radius: 10px; }
+#codeHighlight {
+  color: var(--code-ink); background: var(--code-surface);
+}
+#codeTextarea {
+  border-color: #d9d4f5; caret-color: #4232ba;
+  outline-color: #9e92ef;
+}
+#codeTextarea::placeholder { color: #8988ae; -webkit-text-fill-color: #8988ae; }
+#codeTextarea::selection { background: rgba(133,114,240,.26); }
+.article-content pre .code-token-keyword, #codeHighlight .code-token-keyword { color: #633df2; }
+.article-content pre .code-token-string, #codeHighlight .code-token-string { color: #d13c4a; }
+.article-content pre .code-token-number, #codeHighlight .code-token-number { color: #a05d0d; }
+.article-content pre .code-token-comment, #codeHighlight .code-token-comment { color: #8990b2; }
+.article-content pre .code-token-constant, #codeHighlight .code-token-constant { color: #2069c7; }
+.article-content pre .code-token-function, #codeHighlight .code-token-function { color: #195aaf; }
+@media (max-width: 800px) {
+  .article-content { font-size: 15px; }
+  .article-content h1 { font-size: 35px; }
+  .article-content h2 { font-size: 29px; }
+  .article-content h3 { font-size: 23px; }
+}
+@media (max-width: 580px) {
+  .article-content h1 { font-size: 31px; }
+  .article-content h2 { font-size: 26px; }
+  .article-content h3 { font-size: 22px; }
+  .tool-button { width: 33px; min-width: 33px; height: 33px; }
+  .tool-divider { margin-inline: 3px; }
+}
