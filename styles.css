@@ -517,3 +517,42 @@ body { background: #f8f9fd; color: var(--ink); }
 
 /* The lesson preview is one page, with no inner iframe scrollbars. */
 #previewFrame { overflow: hidden; width: 100%; height: 410px; min-height: 410px; }
+
+
+/* Full-width lesson: keep only a small comfortable safety margin. */
+.editor-container { max-width: none; padding-inline: 12px; }
+.rich-editor { padding: 22px 12px 32px; }
+@media (max-width: 1120px) {
+  .editor-container { padding-inline: 12px; }
+}
+@media (max-width: 800px) {
+  .editor-container { padding-inline: 10px; }
+}
+@media (max-width: 580px) {
+  .editor-container { padding-inline: 8px; }
+  .rich-editor { padding: 18px 9px 28px; }
+}
+
+/* Dense but readable code: consistent in editor and the code dialog. */
+.article-content pre { font-weight: 600; }
+.article-content pre code { font: inherit; color: inherit; padding: 0; background: none; }
+#codeTextarea, #codeHighlight { font-weight: 600; }
+
+/* HTML source becomes document-height content. No independent scrollbars. */
+.html-source-shell { overflow: hidden; }
+#sourceEditor, #htmlSourceHighlight {
+  padding: 20px 12px;
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+  overflow: hidden; overflow-x: hidden; overflow-y: hidden;
+}
+#sourceEditor {
+  resize: none; height: auto; min-height: 390px;
+  overflow: hidden; overflow-x: hidden; overflow-y: hidden;
+}
+#htmlSourceHighlight {
+  min-height: 390px;
+  overflow: hidden; overflow-x: hidden; overflow-y: hidden;
+}
+@media (max-width: 580px) {
+  #sourceEditor, #htmlSourceHighlight { padding: 16px 9px; }
+}
