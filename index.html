@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Редактор курсов — прототип</title>
-  <link rel="stylesheet" href="styles.css?v=20261022-soft-ui-icons-v1">
-  <script src="app.js?v=20261022-soft-ui-icons-v1" defer></script>
+  <link rel="stylesheet" href="styles.css?v=20261022-html-preview-v2">
+  <script src="app.js?v=20261022-html-preview-v2" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
@@ -163,10 +163,13 @@
             </div>
             <div id="sourcePanel" class="editor-panel" role="tabpanel" aria-labelledby="tabSource" hidden>
               <div class="source-help">Редактируй HTML напрямую. При применении опасные теги и атрибуты будут удалены.</div>
-              <textarea id="sourceEditor" spellcheck="false" aria-label="HTML-код урока" placeholder="<h2>Заголовок</h2>"></textarea>
+              <div id="htmlSourceShell" class="html-source-shell">
+                <pre id="htmlSourceHighlight" class="html-source-highlight" aria-hidden="true"><code></code></pre>
+                <textarea id="sourceEditor" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="HTML-код урока" placeholder="<h2>Заголовок</h2>"></textarea>
+              </div>
             </div>
             <div id="previewPanel" class="editor-panel" role="tabpanel" aria-labelledby="tabPreview" hidden>
-              <iframe id="previewFrame" title="Предпросмотр готового HTML-урока" sandbox="" loading="lazy"></iframe>
+              <iframe id="previewFrame" title="Предпросмотр готового HTML-урока" sandbox="allow-same-origin" loading="eager" scrolling="no"></iframe>
             </div>
 
             <div class="editor-footer">
