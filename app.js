@@ -27,6 +27,9 @@
   let linkRange = null;
   let activeCodeBlock = null;
   let codeInsertionRange = null;
+  let selectedImage = null;
+  let imageInsertRange = null;
+  const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 
   function escapeHtml(value) {
     return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -39,14 +42,14 @@
     "p", "div", "span", "br", "hr", "h1", "h2", "h3", "h4", "strong", "b",
     "em", "i", "u", "s", "del", "sup", "sub", "code", "pre", "blockquote",
     "ul", "ol", "li", "a", "table", "thead", "tbody", "tfoot", "tr", "th", "td",
-    "figure", "figcaption"
+    "figure", "figcaption", "img", "font"
   ]);
   const DROP_TAGS = new Set([
     "script", "style", "iframe", "object", "embed", "svg", "math", "form",
     "input", "textarea", "select", "button", "link", "meta", "base", "video",
     "audio", "canvas", "template", "noscript"
   ]);
-  const ALIGN_TAGS = new Set(["div", "p", "h1", "h2", "h3", "h4", "blockquote", "td", "th"]);
+  const ALIGN_TAGS = new Set(["div", "p", "h1", "h2", "h3", "h4", "blockquote", "td", "th", "figure"]);
   const SAFE_ALIGN = new Set(["left", "center", "right", "justify"]);
 
   function safeLink(raw) {
@@ -58,6 +61,28 @@
     try {
       const parsed = new URL(url);
       if (["https:", "http:", "mailto:"].includes(parsed.protocol)) return url;
+    } catch (_) { /* invalid URL */ }
+    return "";
+  }
+
+
+  function colorHex(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (/^#[0-9a-f]{6}$/.test(raw)) return raw;
+    if (/^#[0-9a-f]{3}$/.test(raw)) return "#" + [...raw.slice(1)].map((x) => x+x).join("");
+    const rgb = raw.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*1(?:\.0+)?)?\s*\)$/);
+    if (rgb) {
+      const parts = rgb.slice(1).map(Number);
+      if (parts.every((x) => x >= 0 && x <= 255)) return "#" + parts.map((x) => x.toString(16).padStart(2, "0")).join("");
+    }
+    return "";
+  }
+  function safeImageUrl(raw) {
+    const src = String(raw || "").trim();
+    if (/^data:image\/(?:png|jpeg|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(src) && src.length < 2_500_000) return src;
+    try {
+      const parsed = new URL(src);
+      if (parsed.protocol === "https:") return src;
     } catch (_) { /* invalid URL */ }
     return "";
   }
@@ -79,13 +104,33 @@
         return;
       }
 
-      const clean = document.createElement(tag);
+      const clean = document.createElement(tag === "font" ? "span" : tag);
       if (ALIGN_TAGS.has(tag)) {
         let align = (from.getAttribute("align") || "").toLowerCase().trim();
         const inlineStyle = from.getAttribute("style") || "";
         const match = inlineStyle.match(/(?:^|;)\s*text-align\s*:\s*(left|right|center|justify)\s*(?:;|$)/i);
         if (match) align = match[1].toLowerCase();
         if (SAFE_ALIGN.has(align)) clean.style.textAlign = align;
+      }
+      // Only allow validated text colors, never arbitrary pasted CSS.
+      if (tag === "font" || tag === "span" || ALIGN_TAGS.has(tag) || tag === "li") {
+        const style = from.getAttribute("style") || "";
+        const match = style.match(/(?:^|;)\s*color\s*:\s*(#[0-9a-f]{3,6}|rgba?\([^)]*\))\s*(?:;|$)/i);
+        const color = colorHex((match && match[1]) || (tag === "font" ? from.getAttribute("color") : ""));
+        if (color) clean.style.color = color;
+      }
+      if (tag === "figure") {
+        clean.className = "lesson-image";
+      }
+      if (tag === "img") {
+        const src = safeImageUrl(from.getAttribute("src"));
+        if (!src) return;
+        clean.setAttribute("src", src);
+        clean.setAttribute("alt", (from.getAttribute("alt") || "Иллюстрация урока").slice(0, 200));
+        const rawWidth = parseInt(from.getAttribute("width") || "", 10);
+        if (Number.isFinite(rawWidth) && rawWidth >= 40 && rawWidth <= 2000) clean.setAttribute("width", String(rawWidth));
+        into.appendChild(clean);
+        return;
       }
       if (tag === "pre") {
         const language = (from.getAttribute("data-language") || from.getAttribute("data-lang") || "").trim().toLowerCase();
@@ -125,7 +170,7 @@
   // or the exact indentation and line breaks inside <pre><code>.
   const BLOCK_TAGS = new Set(["p", "div", "h1", "h2", "h3", "h4", "ul", "ol",
     "li", "blockquote", "pre", "table", "thead", "tbody", "tfoot", "tr",
-    "td", "th", "figure", "figcaption", "hr"]);
+    "td", "th", "figure", "figcaption", "hr", "img"]);
   function prettyHtml(html) {
     const tree = new DOMParser().parseFromString(sanitizeHtml(html), "text/html");
     const indent = (level) => "  ".repeat(level);
@@ -136,7 +181,7 @@
       const attrs = Array.from(node.attributes)
         .map((attribute) => " " + attribute.name + '="' + escapeHtml(attribute.value) + '"').join("");
       const open = "<" + tag + attrs + ">";
-      if (tag === "hr" || tag === "br") return open;
+      if (tag === "hr" || tag === "br" || tag === "img") return open;
       // Code whitespace must be reproduced byte-for-byte as text content.
       if (tag === "pre") return open + Array.from(node.childNodes).map((child) => serialize(child, level + 1)).join("") + "</pre>";
       const children = Array.from(node.childNodes);
