@@ -613,6 +613,7 @@
     savedRange = null;
     pendingInlineCode = false;
     plainTypingNode = null;
+    selectLessonImage(null);
     updateCount();
     renderLessons();
     setToolbarState();
@@ -643,6 +644,7 @@
       }
       pendingInlineCode = false;
       plainTypingNode = null;
+      selectLessonImage(null);
     }
     mode = next;
     tabs.forEach((tab) => {
@@ -754,7 +756,7 @@
     const range = editorRange();
     if (mode !== "visual") return {};
     if (!range) return { inlineCode: pendingInlineCode };
-    const alignment = selectionAlignment(range);
+    const alignment = selectedImage?.isConnected ? (selectedImage.closest("figure")?.style.textAlign || "left") : selectionAlignment(range);
     const state = {
       bold: hasFormatting(range, "b,strong"),
       italic: hasFormatting(range, "i,em"),
@@ -777,6 +779,72 @@
     }
     return state;
   }
+
+  const TEXT_COLORS = [
+    "#354158", "#000000", "#ffffff", "#dc2626", "#ea580c", "#d97706",
+    "#16a34a", "#0d9488", "#2563eb", "#6759e8", "#9333ea", "#db2777"
+  ];
+  function currentTextColor(range) {
+    if (!range || selectionTouchesCode(range) || selectedImage?.isConnected) return "";
+    const nodes = selectedTextNodes(range);
+    const candidates = nodes.length ? nodes : [range.startContainer];
+    const colors = candidates.map((node) => {
+      const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+      return el ? colorHex(getComputedStyle(el).color) : "";
+    });
+    return colors.length && colors.every((x) => x === colors[0]) ? colors[0] : "";
+  }
+  function updateColorIndicator(range) {
+    const chosen = currentTextColor(range);
+    const active = chosen && chosen !== colorHex(getComputedStyle(editor).color);
+    $("colorIndicator").style.backgroundColor = active ? chosen : "#354158";
+    $("textColorButton").classList.toggle("active", !!active);
+    $("textColorButton").title = active ? "Цвет текста: " + chosen : "Выбрать цвет текста";
+    $("customTextColor").value = chosen || "#354158";
+  }
+  function closeColorPalette() {
+    $("colorPalette").hidden = true;
+    $("textColorButton").setAttribute("aria-expanded", "false");
+  }
+  function setTextColor(color) {
+    if (mode !== "visual" || selectionTouchesCode() || selectedImage?.isConnected) return;
+    const hex = colorHex(color);
+    if (!hex) return;
+    restoreSelection();
+    // styleWithCSS makes Chromium emit <span style="color: ...">.
+    // The sanitizer also accepts <font color> for browser compatibility.
+    document.execCommand("styleWithCSS", false, true);
+    document.execCommand("foreColor", false, hex);
+    afterFormatting();
+    closeColorPalette();
+  }
+  function resetTextColor() {
+    if (mode !== "visual" || selectionTouchesCode() || selectedImage?.isConnected) return;
+    const range = editorRange();
+    if (range && hasFormatting(range, "span[style*='color'],font[color]")) {
+      removeInlineFromSelection("span[style*='color'],font[color]");
+    } else {
+      setTextColor("#354158");
+    }
+    closeColorPalette();
+  }
+  function selectLessonImage(img) {
+    if (selectedImage?.isConnected) selectedImage.classList.remove("selected-image");
+    selectedImage = img && editor.contains(img) ? img : null;
+    if (selectedImage) selectedImage.classList.add("selected-image");
+  }
+  function updateImageControls() {
+    const available = mode === "visual" && selectedImage?.isConnected;
+    $("imageSizing").hidden = !available;
+    if (available) $("imageSizeLabel").textContent = (parseInt(selectedImage.getAttribute("width"), 10) || selectedImage.naturalWidth || 600) + " px";
+  }
+  function scaleLessonImage(factor) {
+    if (!selectedImage?.isConnected) return;
+    const width = parseInt(selectedImage.getAttribute("width"), 10) || selectedImage.naturalWidth || 600;
+    selectedImage.setAttribute("width", String(Math.min(2000, Math.max(60, Math.round(width * factor)))));
+    afterFormatting();
+  }
+
   function setToolbarState() {
     const range = mode === "visual" ? editorRange() : null;
     const codeProtected = mode === "visual" && selectionTouchesCode(range);
@@ -796,6 +864,8 @@
       }
     });
     $("blockType").value = currentBlockType(range);
+    updateColorIndicator(range);
+    updateImageControls();
   }
   function afterFormatting() {
     captureSelection();
@@ -804,6 +874,15 @@
   }
   function runCommand(command, value) {
     if (mode !== "visual" || selectionTouchesCode()) return;
+    if (selectedImage?.isConnected && /^justify(?:Left|Center|Right)$/.test(command)) {
+      const figure = selectedImage.closest("figure");
+      if (figure) {
+        figure.style.textAlign = command === "justifyCenter" ? "center"
+          : command === "justifyRight" ? "right" : "left";
+        afterFormatting();
+      }
+      return;
+    }
     restoreSelection();
     const state = queryActiveStates();
     const inlineSelectors = { bold: "b,strong", italic: "i,em", underline: "u" };
