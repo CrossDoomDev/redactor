@@ -181,16 +181,93 @@ test("inline code toggles only the selected part and preserves surrounding code"
   await expect(codeButton).toHaveAttribute("aria-pressed", "false");
 });
 
-test("block code is detected, then converted back into regular text", async ({ page }) => {
-  await putSelection(page, "<pre><code>first\nsecond</code></pre>", "pre code", 3);
-  const blockButton = page.locator('[data-action="codeBlock"]');
-  await expect(blockButton).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator('[data-action="inlineCode"]')).toHaveAttribute("aria-pressed", "false");
-  await blockButton.click();
-  await expect(page.locator("#editor pre")).toHaveCount(0);
-  await expect(page.locator("#editor p")).toContainText("first");
-  await expect(page.locator("#editor p")).toContainText("second");
-  await expect(blockButton).toHaveAttribute("aria-pressed", "false");
+test("protected code block is highlighted and cannot be formatted or typed into", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor = document.getElementById("editor");
+    editor.innerHTML = '<p>До</p><pre><code>func example():\n    print("Hello")</code></pre><p>После</p>';
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await expect(page.locator("#editor pre")).toHaveAttribute("contenteditable", "false");
+  await expect(page.locator("#editor pre")).toHaveAttribute("data-language", "gdscript");
+  await expect(page.locator("#editor .code-token-keyword")).toHaveCount(1);
+  const original = await page.locator("#editor pre").innerText();
+  await page.locator("#editor pre").click();
+  // Noneditable content remains selectable and the formatting toolbar locks.
+  await expect(page.locator('[data-action="codeBlock"]')).toBeDisabled();
+  await page.keyboard.type("malicious");
+  await expect(page.locator("#editor pre")).toContainText("func example()");
+  expect(await page.locator("#editor pre").innerText()).toBe(original);
+  await expect(page.locator('[data-command="bold"]')).toBeDisabled();
+});
+
+test("double clicking protected block opens modal; changing code only on Apply", async ({ page }) => {
+  await page.locator("#editor pre").dblclick();
+  await expect(page.locator("#codeDialog")).toBeVisible();
+  await expect(page.locator("#codeLanguage")).toHaveValue("gdscript");
+  const original = await page.locator("#editor pre").innerText();
+  await page.locator("#codeTextarea").fill('extends Node2D\n\nfunc _ready():\n\tprint("ok")');
+  await expect(page.locator("#editor pre")).toHaveText(original.trim());
+  await page.locator("#codeCancel").click();
+  await expect(page.locator("#codeDialog")).not.toBeVisible();
+  await expect(page.locator("#editor pre")).toContainText(original.trim());
+  await page.locator("#editor pre").dblclick();
+  await page.locator("#codeLanguage").selectOption("none");
+  await page.locator("#codeTextarea").fill("func example():\n\tpass");
+  await expect(page.locator("#codePreview .code-token-keyword")).toHaveCount(0);
+  await page.locator("#codeApply").click();
+  await expect(page.locator("#editor pre")).toHaveAttribute("data-language", "none");
+  await expect(page.locator("#editor pre")).toContainText("func example():");
+  await expect(page.locator("#editor .code-token-keyword")).toHaveCount(0);
+});
+
+test("code dialog never closes from backdrop or Escape", async ({ page }) => {
+  await page.locator("#editor pre").dblclick();
+  const dialog = page.locator("#codeDialog");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(1, 1);
+  await expect(dialog).toBeVisible();
+  await page.locator("#codeCancel").click();
+  await expect(dialog).not.toBeVisible();
+});
+
+test("code modal inserts tabs and auto-indent after GDScript blocks", async ({ page }) => {
+  await page.locator("#editor pre").dblclick();
+  const textarea = page.locator("#codeTextarea");
+  await textarea.fill("func ready():");
+  await textarea.press("End");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("func ready():\n\t");
+  await page.keyboard.type("if condition:");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("func ready():\n\tif condition:\n\t\t");
+  await page.keyboard.type("pass");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("func ready():\n\tif condition:\n\t\tpass\n\t\t");
+  await textarea.press("Tab");
+  await expect(textarea).toHaveValue("func ready():\n\tif condition:\n\t\tpass\n\t\t\t");
+  await page.locator("#codeLanguage").selectOption("none");
+  await textarea.fill("if condition:");
+  await textarea.press("End");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("if condition:\n");
+});
+
+test("multi-line code text and language survive HTML mode and backup", async ({ page }) => {
+  await page.locator("#editor pre").dblclick();
+  await page.locator("#codeLanguage").selectOption("none");
+  await page.locator("#codeTextarea").fill("\tline\n\t\tindented");
+  await page.locator("#codeApply").click();
+  await page.locator("#tabSource").click();
+  const source = await page.locator("#sourceEditor").inputValue();
+  expect(source).toContain('data-language="none"');
+  expect(source).toContain("\tline\n\t\tindented");
+  expect(source).not.toContain("code-token");
+  await page.locator("#tabVisual").click();
+  await page.locator("#editor pre").dblclick();
+  await expect(page.locator("#codeTextarea")).toHaveValue("\tline\n\t\tindented");
+  await expect(page.locator("#codeLanguage")).toHaveValue("none");
 });
 
 test("heading, nested center alignment, and list states reflect the cursor", async ({ page }) => {
