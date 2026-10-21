@@ -566,8 +566,18 @@ test("all four handles support pointer drag and selected image stays adjustable"
   await dragImageHandle(page, "ne", 40, -30);
   const grown = Number(await img.getAttribute("width"));
   expect(grown).toBeGreaterThan(280);
+  await page.evaluate(() => {
+    window.__resizeDebug = [];
+    ["pointerdown","pointermove","pointerup"].forEach((type) => {
+      document.addEventListener(type, (event) => window.__resizeDebug.push({
+        type, target: event.target.className, x:event.clientX, y:event.clientY,
+        width:document.querySelector("#editor figure img").getAttribute("width")
+      }), true);
+    });
+  });
   await dragImageHandle(page, "sw", 40, -30);
   const shrunk = Number(await img.getAttribute("width"));
+  console.log("SW drag", JSON.stringify(await page.evaluate(() => window.__resizeDebug)));
   expect(shrunk).toBeLessThan(grown);
   await expect(page.locator("#imageResizeOverlay")).toHaveClass(/visible/);
 });
