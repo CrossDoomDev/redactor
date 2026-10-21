@@ -694,25 +694,20 @@
     if (!text || !pendingInlineCode) return false;
     restoreSelection();
     const selection = window.getSelection();
-    const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+    const range = selection && selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
     if (!range || !editor.contains(range.commonAncestorContainer)) return false;
-    // execCommand keeps Chromium's undo stack intact, while direct Range
-    // mutation would make the first keystroke impossible to undo.
-    const markup = '<code data-pending-code-entry="1">' + escapeHtml(text) + '</code>';
-    const inserted = document.execCommand("insertHTML", false, markup);
-    if (!inserted) return false;
-    const code = editor.querySelector('code[data-pending-code-entry="1"]');
-    if (code) {
-      code.removeAttribute("data-pending-code-entry");
-      const lastText = code.lastChild;
-      if (lastText && lastText.nodeType === Node.TEXT_NODE) {
-        const caret = document.createRange();
-        caret.setStart(lastText, lastText.textContent.length);
-        caret.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(caret);
-      }
-    }
+    // execCommand("insertHTML") is rejected by some Chromium versions while
+    // already handling beforeinput. Use the live Range for this first keystroke.
+    range.deleteContents();
+    const code = document.createElement("code");
+    const textNode = document.createTextNode(text);
+    code.appendChild(textNode);
+    range.insertNode(code);
+    const caret = document.createRange();
+    caret.setStart(textNode, textNode.textContent.length);
+    caret.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(caret);
     pendingInlineCode = false;
     afterFormatting();
     return true;
