@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Редактор курсов — прототип</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand" aria-label="Редактор курсов">
+        <span class="brand-mark" aria-hidden="true">✦</span>
+        <div><strong>Курсограф</strong><span class="brand-sub">редактор курсов</span></div>
+      </div>
+      <span class="top-divider" aria-hidden="true"></span>
+      <span class="project-name">Мой учебный проект <span class="project-badge">Прототип</span></span>
+      <div class="top-actions">
+        <span class="save-state" id="saveState" role="status" aria-live="polite"><span class="save-dot"></span> Сохранено локально</span>
+        <button type="button" class="button button-ghost" id="exportJson" title="Сохранить резервную копию всех уроков">↓ Проект JSON</button>
+        <button type="button" class="button button-primary" id="exportHtml">↓ Скачать HTML</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar" id="sidebar" aria-label="Навигация по курсу">
+        <div class="sidebar-top">
+          <div class="eyebrow">РАБОЧАЯ ОБЛАСТЬ</div>
+          <div class="course-cover"><span aria-hidden="true">⌘</span></div>
+          <h2>Мой учебный курс</h2>
+          <p>Создавай и редактируй уроки, а затем выгружай готовую HTML-разметку.</p>
+        </div>
+        <div class="section-heading"><span>УРОКИ</span><button id="addLesson" class="icon-add" type="button" title="Добавить урок" aria-label="Добавить урок">+</button></div>
+        <nav class="lesson-list" id="lessonList" aria-label="Список уроков"></nav>
+        <div class="sidebar-bottom">
+          <label class="toggle-line"><input type="checkbox" id="markdownToggle" checked><span>Markdown при вставке</span></label>
+          <p>Если ChatGPT скопировал Markdown вместо HTML, преобразуем его в оформление.</p>
+          <button type="button" class="button button-secondary button-wide" id="importButton">↑ Импорт HTML / JSON</button>
+          <input id="fileInput" type="file" accept=".html,.htm,.json,text/html,application/json" hidden>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="breadcrumb"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Показать список уроков">☰</button><span>Мой учебный курс</span><span class="crumb-separator">/</span><span>Редактирование урока</span></div>
+        <div class="editor-container">
+          <div class="page-header">
+            <div>
+              <div class="eyebrow eyebrow-accent">КОНСТРУКТОР УРОКА</div>
+              <h1>Редактор уроков <span class="header-sparkle" aria-hidden="true">✳</span></h1>
+              <p>Вставляй текст из ChatGPT, сохраняй разметку и оформляй материал для публикации.</p>
+            </div>
+            <div class="step-pill"><span class="step-pill-dot"></span> Текстовый урок</div>
+          </div>
+
+          <section class="editor-card" aria-label="Редактор">
+            <div class="lesson-details">
+              <label for="lessonTitle">НАЗВАНИЕ УРОКА</label>
+              <input type="text" maxlength="160" id="lessonTitle" placeholder="Введите название урока" autocomplete="off">
+            </div>
+
+            <div class="mode-row">
+              <div class="mode-tabs" role="tablist" aria-label="Режим редактора">
+                <button type="button" id="tabVisual" class="mode-tab active" data-mode="visual" role="tab" aria-selected="true" aria-controls="visualPanel">✎ Редактор</button>
+                <button type="button" id="tabSource" class="mode-tab" data-mode="source" role="tab" aria-selected="false" aria-controls="sourcePanel">&lt;/&gt; HTML</button>
+                <button type="button" id="tabPreview" class="mode-tab" data-mode="preview" role="tab" aria-selected="false" aria-controls="previewPanel">◉ Просмотр</button>
+              </div>
+              <span id="wordCount" class="word-count">0 слов</span>
+            </div>
+
+            <div class="formatbar" id="formatbar" role="toolbar" aria-label="Форматирование текста">
+              <div class="tool-group">
+                <label for="blockType" class="visually-hidden">Тип блока</label>
+                <select id="blockType" title="Выбрать тип абзаца" aria-label="Тип блока">
+                  <option value="p">Обычный текст</option>
+                  <option value="h1">Заголовок 1</option>
+                  <option value="h2">Заголовок 2</option>
+                  <option value="h3">Заголовок 3</option>
+                </select>
+              </div>
+              <span class="tool-divider"></span>
+              <div class="tool-group">
+                <button class="tool-button strong" data-command="bold" type="button" title="Жирный (Ctrl+B)" aria-label="Жирный">B</button>
+                <button class="tool-button italic" data-command="italic" type="button" title="Курсив (Ctrl+I)" aria-label="Курсив">I</button>
+                <button class="tool-button underline" data-command="underline" type="button" title="Подчёркнутый (Ctrl+U)" aria-label="Подчёркнутый">U</button>
+                <button class="tool-button code-glyph" data-action="inlineCode" type="button" title="Встроенный код" aria-label="Встроенный код">&lt;/&gt;</button>
+              </div>
+              <span class="tool-divider"></span>
+              <div class="tool-group">
+                <button class="tool-button align-icon" data-command="justifyLeft" type="button" title="По левому краю" aria-label="По левому краю">☷</button>
+                <button class="tool-button align-icon" data-command="justifyCenter" type="button" title="По центру" aria-label="По центру">≡</button>
+                <button class="tool-button align-icon" data-command="justifyRight" type="button" title="По правому краю" aria-label="По правому краю">☰</button>
+              </div>
+              <span class="tool-divider"></span>
+              <div class="tool-group">
+                <button class="tool-button" data-command="insertUnorderedList" type="button" title="Маркированный список" aria-label="Маркированный список">• ≡</button>
+                <button class="tool-button" data-command="insertOrderedList" type="button" title="Нумерованный список" aria-label="Нумерованный список">1. ≡</button>
+                <button class="tool-button" data-action="quote" type="button" title="Цитата" aria-label="Цитата">❝</button>
+                <button class="tool-button" data-action="codeBlock" type="button" title="Блок кода" aria-label="Блок кода">{ }</button>
+              </div>
+              <span class="tool-divider"></span>
+              <div class="tool-group">
+                <button class="tool-button" data-action="link" type="button" title="Вставить ссылку" aria-label="Вставить ссылку">🔗</button>
+                <button class="tool-button" data-command="insertHorizontalRule" type="button" title="Разделитель" aria-label="Разделитель">─</button>
+                <button class="tool-button" data-command="removeFormat" type="button" title="Очистить выделенное форматирование" aria-label="Очистить форматирование">Tx</button>
+              </div>
+              <span class="tool-divider"></span>
+              <div class="tool-group">
+                <button class="tool-button" data-command="undo" type="button" title="Отменить (Ctrl+Z)" aria-label="Отменить">↶</button>
+                <button class="tool-button" data-command="redo" type="button" title="Повторить (Ctrl+Y)" aria-label="Повторить">↷</button>
+              </div>
+            </div>
+
+            <div id="visualPanel" class="editor-panel" role="tabpanel" aria-labelledby="tabVisual">
+              <div id="editor" class="rich-editor article-content" contenteditable="true" role="textbox" aria-label="Содержимое урока" aria-multiline="true" spellcheck="true" data-placeholder="Вставьте текст из ChatGPT (Ctrl+V) или начните печатать..."></div>
+            </div>
+            <div id="sourcePanel" class="editor-panel" role="tabpanel" aria-labelledby="tabSource" hidden>
+              <div class="source-help">Редактируй HTML напрямую. При применении опасные теги и атрибуты будут удалены.</div>
+              <textarea id="sourceEditor" spellcheck="false" aria-label="HTML-код урока" placeholder="<h2>Заголовок</h2>"></textarea>
+            </div>
+            <div id="previewPanel" class="editor-panel" role="tabpanel" aria-labelledby="tabPreview" hidden>
+              <iframe id="previewFrame" title="Предпросмотр готового HTML-урока" sandbox="" loading="lazy"></iframe>
+            </div>
+
+            <div class="editor-footer">
+              <span id="editorHint">💡 Совет: скопируй оформленный ответ ChatGPT и вставь его с помощью Ctrl+V.</span>
+              <span class="html-badge">HTML</span>
+            </div>
+          </section>
+
+          <div class="bottom-bar">
+            <div class="bottom-notice"><span class="notice-icon">◎</span><span>Проект сохраняется в этом браузере. Для резервной копии выгрузи JSON.</span></div>
+            <button type="button" class="button button-secondary" id="copyHtml">⧉ Копировать HTML</button>
+          </div>
+        </div>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+</body>
+</html>
