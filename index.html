@@ -175,9 +175,10 @@
         </div>
         <p class="code-modal-info">Tab — отступ · Shift+Tab — убрать отступ · Enter после «:» — новый уровень вложенности.</p>
         <label class="visually-hidden" for="codeTextarea">Содержимое блока кода</label>
-        <textarea id="codeTextarea" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Содержимое многострочного кода" placeholder="Введите код здесь..."></textarea>
-        <div class="code-preview-title">Предпросмотр подсветки</div>
-        <pre id="codePreview" class="code-preview" aria-label="Предпросмотр кода"><code></code></pre>
+        <div class="code-input-shell">
+          <pre id="codeHighlight" class="code-highlight" aria-hidden="true"><code></code></pre>
+          <textarea id="codeTextarea" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Содержимое многострочного кода" placeholder="Введите код здесь..."></textarea>
+        </div>
         <div class="code-modal-actions">
           <span class="code-modal-note">Изменения сохраняются только после применения.</span>
           <button type="button" id="codeCancel" class="button button-secondary">Отменить</button>
