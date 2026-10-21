@@ -25,6 +25,8 @@
   let plainTypingNode = null;
   let editingLink = null;
   let linkRange = null;
+  let activeCodeBlock = null;
+  let codeInsertionRange = null;
 
   function escapeHtml(value) {
     return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -84,6 +86,10 @@
         const match = inlineStyle.match(/(?:^|;)\s*text-align\s*:\s*(left|right|center|justify)\s*(?:;|$)/i);
         if (match) align = match[1].toLowerCase();
         if (SAFE_ALIGN.has(align)) clean.style.textAlign = align;
+      }
+      if (tag === "pre") {
+        const language = (from.getAttribute("data-language") || from.getAttribute("data-lang") || "").trim().toLowerCase();
+        clean.setAttribute("data-language", language === "none" ? "none" : "gdscript");
       }
       if (tag === "a") {
         const href = safeLink(from.getAttribute("href") || "");
@@ -325,6 +331,120 @@
       lessonList.appendChild(button);
     });
   }
+
+  // Display-only highlighting. Source and saved HTML always contain plain code text.
+  const GD_TOKENS = /#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:func|static|if|elif|else|for|while|in|match|when|extends|class_name|class|return|break|continue|pass|var|const|enum|signal|await|yield|is|as|and|or|not|set|get|self|super|preload|load|export|onready)\b|\b(?:true|false|null|void|PI|TAU|INF|NAN)\b|\b(?:print|push_error|push_warning|assert|len|range|str|int|float|bool|Vector2|Vector3|Node|Node2D|CharacterBody2D|Sprite2D|Array|Dictionary)\b|\b\d+(?:\.\d+)?\b/g;
+  function highlightCode(value, language) {
+    if (language === "none") return escapeHtml(value);
+    let html = "", last = 0;
+    for (const m of value.matchAll(GD_TOKENS)) {
+      html += escapeHtml(value.slice(last, m.index));
+      const token = m[0];
+      const kind = token[0] === "#" ? "comment"
+        : token[0] === '"' || token[0] === "'" ? "string"
+        : /^\d/.test(token) ? "number"
+        : /^(true|false|null|void|PI|TAU|INF|NAN)$/.test(token) ? "constant"
+        : /^(print|push_error|push_warning|assert|len|range|str|int|float|bool|Vector2|Vector3|Node|Node2D|CharacterBody2D|Sprite2D|Array|Dictionary)$/.test(token) ? "function"
+        : "keyword";
+      html += '<span class="code-token-' + kind + '">' + escapeHtml(token) + '</span>';
+      last = m.index + token.length;
+    }
+    return html + escapeHtml(value.slice(last));
+  }
+  function prepareCodeBlocks(root, locked = true) {
+    root.querySelectorAll("pre").forEach((pre) => {
+      if (pre.dataset.codePrepared === "yes") return;
+      const source = pre.textContent || "";
+      const language = pre.getAttribute("data-language") === "none" ? "none" : "gdscript";
+      pre.setAttribute("data-language", language);
+      const code = document.createElement("code");
+      code.innerHTML = highlightCode(source, language);
+      pre.replaceChildren(code);
+      if (locked) {
+        pre.contentEditable = "false";
+        pre.title = "Двойной щелчок для редактирования кода";
+      }
+      pre.dataset.codePrepared = "yes";
+    });
+  }
+  function selectionTouchesCode(range = editorRange()) {
+    if (!range) return false;
+    return Array.from(editor.querySelectorAll("pre")).some((pre) =>
+      pre.contains(range.startContainer) || pre.contains(range.endContainer)
+      || (!range.collapsed && range.intersectsNode(pre)));
+  }
+  function refreshCodePreview() {
+    $("codePreview").querySelector("code").innerHTML = highlightCode($("codeTextarea").value, $("codeLanguage").value);
+  }
+  function openCodeDialog(pre = null) {
+    if (mode !== "visual") return;
+    const range = editorRange();
+    activeCodeBlock = pre && editor.contains(pre) ? pre : null;
+    codeInsertionRange = activeCodeBlock ? null : (range && !selectionTouchesCode(range) ? range.cloneRange() : null);
+    $("codeDialogTitle").textContent = activeCodeBlock ? "Редактировать многострочный код" : "Добавить многострочный код";
+    $("codeTextarea").value = activeCodeBlock ? activeCodeBlock.textContent : "";
+    $("codeLanguage").value = activeCodeBlock?.getAttribute("data-language") === "none" ? "none" : "gdscript";
+    refreshCodePreview();
+    $("codeDialog").showModal();
+    $("codeTextarea").focus();
+  }
+  function closeCodeDialog() {
+    $("codeDialog").close();
+    activeCodeBlock = null;
+    codeInsertionRange = null;
+    editor.focus();
+  }
+  function applyCodeDialog(event) {
+    event.preventDefault();
+    const value = $("codeTextarea").value.replace(/\r\n?/g, "\n");
+    const language = $("codeLanguage").value === "none" ? "none" : "gdscript";
+    const target = activeCodeBlock && activeCodeBlock.isConnected ? activeCodeBlock : null;
+    const selectionRange = codeInsertionRange?.cloneRange() || null;
+    closeCodeDialog();
+    if (target) {
+      target.setAttribute("data-language", language);
+      target.removeAttribute("data-code-prepared");
+      target.textContent = value;
+      prepareCodeBlocks(editor);
+      afterFormatting();
+    } else {
+      if (selectionRange) {
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(selectionRange);
+        savedRange = selectionRange;
+      }
+      insertHtml('<pre data-language="' + language + '"><code>' + escapeHtml(value) + '</code></pre><p></p>');
+      prepareCodeBlocks(editor);
+      setToolbarState();
+    }
+  }
+  function onCodeKeydown(event) {
+    if (event.isComposing || !["Enter", "Tab"].includes(event.key)) return;
+    event.preventDefault();
+    const field = event.currentTarget;
+    const value = field.value, start = field.selectionStart, end = field.selectionEnd;
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    if (event.key === "Enter") {
+      const line = value.slice(lineStart, start);
+      const indent = (line.match(/^[ \t]*/) || [""])[0];
+      const text = line.replace(/#.*$/, "").trimEnd();
+      const extra = $("codeLanguage").value === "gdscript" && text.endsWith(":") ? "\t" : "";
+      field.setRangeText("\n" + indent + extra, start, end, "end");
+    } else if (start === end) {
+      if (event.shiftKey) {
+        const leading = value.slice(lineStart, start);
+        if (leading.startsWith("\t")) field.setRangeText("", lineStart, lineStart + 1, "end");
+      } else field.setRangeText("\t", start, end, "end");
+    } else {
+      const block = value.slice(lineStart, end);
+      const replacement = block.split("\n").map((line) => event.shiftKey
+        ? line.replace(/^\t|^ {1,4}/, "") : "\t" + line).join("\n");
+      field.setRangeText(replacement, lineStart, end, "select");
+    }
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
   function currentHtml() {
     return sanitizeHtml(mode === "source" ? sourceEditor.value : editor.innerHTML);
   }
@@ -339,6 +459,7 @@
     $("wordCount").textContent = words + " " + noun;
   }
   function markDirty() {
+    if (mode === "visual") prepareCodeBlocks(editor);
     updateSaveState("Не сохранено", "dirty");
     updateCount();
     clearTimeout(saveTimer);
@@ -363,6 +484,7 @@
     const lesson = selectedLesson();
     lessonTitle.value = lesson.title;
     editor.innerHTML = sanitizeHtml(lesson.html);
+    prepareCodeBlocks(editor);
     sourceEditor.value = prettyHtml(lesson.html);
     sourceSnapshot = sanitizeHtml(lesson.html);
     pendingInlineCode = false;
@@ -387,6 +509,7 @@
     if (next !== mode) {
       if (mode === "source") {
         editor.innerHTML = sanitizeHtml(sourceEditor.value);
+        prepareCodeBlocks(editor);
         sourceSnapshot = sanitizeHtml(editor.innerHTML);
       }
       if (next === "source") {
@@ -422,7 +545,10 @@
   function standaloneHtml() {
     const title = lessonTitle.value.trim() || "Урок";
     const html = prettyHtml(currentHtml());
-    return '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escapeHtml(title) + '</title>\n<style>' + previewCss + '</style>\n</head>\n<body>\n' + html + '\n</body>\n</html>';
+    const rendered = document.createElement("div");
+    rendered.innerHTML = html;
+    prepareCodeBlocks(rendered, false);
+    return '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escapeHtml(title) + '</title>\n<style>' + previewCss + '</style>\n</head>\n<body>\n' + rendered.innerHTML + '\n</body>\n</html>';
   }
   function updatePreview() {
     previewFrame.srcdoc = standaloneHtml();
