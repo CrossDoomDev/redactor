@@ -851,7 +851,7 @@ test("very long HTML attribute wraps without horizontal scroll and expands on ty
   expect(await source.evaluate(e=>e.clientHeight)).toBeLessThan(450);
 });
 
-test("preview and visual editor use almost the full available width", async ({ page }) => {
+test("editor and preview retain modest matching side margins", async ({ page }) => {
   await page.evaluate(() => {
     const editor=document.querySelector("#editor");
     editor.innerHTML='<p>Введение</p><pre data-language="gdscript"><code>func test():\n    pass</code></pre>';
@@ -861,7 +861,8 @@ test("preview and visual editor use almost the full available width", async ({ p
     const e=document.querySelector("#editor"), parent=e.closest(".editor-card");
     return {inner:e.clientWidth, parent:parent.clientWidth, paddingLeft:parseFloat(getComputedStyle(e).paddingLeft)};
   });
-  expect(layout.paddingLeft).toBeLessThanOrEqual(13);
+  expect(layout.paddingLeft).toBeGreaterThanOrEqual(18);
+  expect(layout.paddingLeft).toBeLessThanOrEqual(29);
   await page.locator("#tabPreview").click();
   await expect.poll(()=>page.locator("#previewFrame").evaluate(f=>!!f.contentDocument?.body)).toBe(true);
   const preview=await page.locator("#previewFrame").evaluate(f=>{
@@ -875,7 +876,8 @@ test("preview and visual editor use almost the full available width", async ({ p
     };
   });
   expect(preview.marginLeft).toBeLessThanOrEqual(8);
-  expect(preview.paddingLeft).toBeLessThanOrEqual(11);
+  expect(preview.paddingLeft).toBeGreaterThanOrEqual(26);
+  expect(preview.paddingLeft).toBeLessThanOrEqual(30);
   expect(preview.maxWidth).toBe("none");
   expect(preview.width).toBeGreaterThan(preview.frameWidth-12);
   expect(Number(preview.codeWeight)).toBeGreaterThanOrEqual(600);
