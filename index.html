@@ -136,6 +136,28 @@
         </div>
       </main>
     </div>
+    <dialog id="linkDialog" class="link-dialog" aria-labelledby="linkDialogTitle">
+      <form id="linkForm" class="link-form">
+        <div class="link-dialog-header">
+          <div>
+            <div class="eyebrow eyebrow-accent">НАСТРОЙКА ССЫЛКИ</div>
+            <h2 id="linkDialogTitle">Вставить ссылку</h2>
+          </div>
+          <button type="button" class="link-close" id="linkCancelTop" aria-label="Закрыть">×</button>
+        </div>
+        <label for="linkText">Текст ссылки</label>
+        <input id="linkText" name="text" type="text" maxlength="500" required autocomplete="off" placeholder="Текст, который видит читатель">
+        <label for="linkUrl">Адрес (URL)</label>
+        <input id="linkUrl" name="url" type="text" required autocomplete="off" spellcheck="false" placeholder="https://example.com">
+        <p class="link-help" id="linkHelp">Разрешены HTTP, HTTPS, mailto и внутренние ссылки.</p>
+        <div class="link-actions">
+          <button type="button" class="button button-danger" id="linkRemove" hidden>Удалить ссылку</button>
+          <span class="link-spacer"></span>
+          <button type="button" class="button button-secondary" id="linkCancel">Отмена</button>
+          <button type="submit" class="button button-primary" id="linkApply">Применить</button>
+        </div>
+      </form>
+    </dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>
 </body>
