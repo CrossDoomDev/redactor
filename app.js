@@ -390,7 +390,7 @@
     // A nonbreaking visual terminator keeps the last blank line visible,
     // without changing the actual source saved in the textarea.
     $("codeHighlight").querySelector("code").innerHTML =
-      highlightCode(content, $("codeLanguage").value) + (content.endsWith("\\n") ? " " : "");
+      highlightCode(content, $("codeLanguage").value) + (content.endsWith("\n") ? " " : "");
     syncCodeHighlightScroll();
   }
   function openCodeDialog(pre = null) {
