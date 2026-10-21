@@ -408,3 +408,91 @@ test("paste preserves safe HTML and removes scripts", async ({ page }) => {
   await expect(page.locator("#editor script")).toHaveCount(0);
   expect(await page.evaluate(() => window.injected)).toBeUndefined();
 });
+
+test("formatting toolbar sticks beneath header while lesson scrolls", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor = document.querySelector("#editor");
+    editor.innerHTML = Array.from({length: 85}, (_, i) => "<p>Длинный урок: абзац " + i + "</p>").join("");
+    editor.dispatchEvent(new Event("input", {bubbles: true}));
+  });
+  await page.evaluate(() => window.scrollTo(0, 620));
+  await expect.poll(() => page.evaluate(() => Math.round(document.querySelector("#formatbar").getBoundingClientRect().top))).toBe(72);
+  const css = await page.locator("#formatbar").evaluate((el) => ({position: getComputedStyle(el).position, top: getComputedStyle(el).top}));
+  expect(css.position).toBe("sticky");
+  expect(css.top).toBe("72px");
+});
+
+test("color palette styles selection, reflects selected color and resets it", async ({ page }) => {
+  await putSelection(page, "<p>Цветной текст</p>", "p", 0, 7);
+  const colorButton = page.locator("#textColorButton");
+  await colorButton.click();
+  await expect(page.locator("#colorPalette")).toBeVisible();
+  await page.getByRole("button", {name: "Применить цвет #dc2626"}).click();
+  await expect(page.locator("#editor [style*='color']")).toHaveCount(1);
+  await page.evaluate(() => {
+    const span = document.querySelector("#editor [style*='color']");
+    const text = Array.from(span.childNodes).find((n) => n.nodeType === Node.TEXT_NODE);
+    const r = document.createRange(); r.setStart(text, 2); r.collapse(true);
+    const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(r);
+  });
+  await expect(colorButton).toHaveClass(/active/);
+  await expect(page.locator("#colorIndicator")).toHaveCSS("background-color", "rgb(220, 38, 38)");
+  await colorButton.click();
+  await page.locator("#resetTextColor").click();
+  await expect(page.locator("#editor [style*='color']")).toHaveCount(0);
+  await expect(colorButton).not.toHaveClass(/active/);
+});
+
+test("color survives sanitizer and HTML mode, unsafe attributes remain stripped", async ({ page }) => {
+  await putSelection(page, "<p>Выделение</p>", "p", 0, 9);
+  await page.locator("#textColorButton").click();
+  await page.getByRole("button", {name: "Применить цвет #2563eb"}).click();
+  await page.locator("#tabSource").click();
+  const src = await page.locator("#sourceEditor").inputValue();
+  expect(src).toContain("color: rgb(37, 99, 235)");
+  await page.locator("#tabVisual").click();
+  await expect(page.locator("#editor [style*='color']")).toContainText("Выделение");
+});
+
+test("clipboard PNG creates embedded image with alignment and scalable width", async ({ page }) => {
+  const pixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==";
+  await page.locator("#editor").click();
+  await page.evaluate((pixel) => {
+    const data = Uint8Array.from(atob(pixel), c => c.charCodeAt(0));
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([data], "sample.png", {type:"image/png"}));
+    const event = new ClipboardEvent("paste", {bubbles:true, cancelable:true, clipboardData:transfer});
+    document.querySelector("#editor").dispatchEvent(event);
+  }, pixel);
+  const image = page.locator("#editor figure.lesson-image img").first();
+  await expect(image).toBeVisible();
+  const initial = Number(await image.getAttribute("width"));
+  expect(initial).toBeGreaterThanOrEqual(60);
+  await image.click();
+  await expect(page.locator("#imageSizing")).toBeVisible();
+  await page.locator("#shrinkImage").click();
+  expect(Number(await image.getAttribute("width"))).toBeLessThan(initial);
+  await page.locator('[data-command="justifyCenter"]').click();
+  await expect(page.locator("#editor figure.lesson-image").first()).toHaveCSS("text-align", "center");
+  await page.locator('[data-command="justifyRight"]').click();
+  await expect(page.locator("#editor figure.lesson-image").first()).toHaveCSS("text-align", "right");
+  await page.locator("#tabSource").click();
+  const html = await page.locator("#sourceEditor").inputValue();
+  expect(html).toContain("data:image/png;base64,");
+  expect(html).toContain("<img ");
+  expect(html).toContain('text-align: right');
+  await page.locator("#tabVisual").click();
+  await expect(page.locator("#editor figure.lesson-image img")).toHaveCount(1);
+});
+
+test("malicious pasted image URLs are rejected", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor = document.getElementById("editor");
+    editor.innerHTML = '<p>hello</p><img src="javascript:alert(1)" onerror="window.evil=1">';
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+  await page.locator("#tabSource").click();
+  const src = await page.locator("#sourceEditor").inputValue();
+  expect(src).not.toContain("javascript:");
+  expect(src).not.toContain("onerror");
+});
