@@ -678,3 +678,30 @@ test("image drag round trip through original size remains continuous and reversi
   }
   for(const r of readings.filter(x=>x.dx===0&&x.dy===0))expect(r.width).toBe(280);
 });
+
+test("drag away from width boundary then reverse responds immediately", async ({ page }) => {
+  // A 490px container reproduces the reported 'magnet near 490' effect.
+  await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 1200; c.height = 400;
+    const ed = document.querySelector("#editor");
+    ed.innerHTML = '<figure class="lesson-image" style="width:490px;text-align:left"><img width="450" src="' +
+      c.toDataURL("image/png") + '" alt="Широкий рисунок"></figure><p>Текст</p>';
+    ed.dispatchEvent(new Event("input", { bubbles:true }));
+  });
+  const img = page.locator("#editor figure img");
+  await img.scrollIntoViewIfNeeded();
+  await img.hover();
+  const rect = await page.locator("#imageResizeOverlay .image-resize-se").boundingBox();
+  const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+  await page.mouse.move(x,y);
+  await page.mouse.down();
+  await page.mouse.move(x+160,y+40,{steps:6});
+  const atLimit = Number(await img.getAttribute("width"));
+  expect(atLimit).toBe(490);
+  await page.mouse.move(x+150,y+38);
+  const afterReverse = Number(await img.getAttribute("width"));
+  await page.mouse.up();
+  console.log("BOUNDARY-REVERSE", JSON.stringify({atLimit,afterReverse}));
+  expect(afterReverse).toBeLessThan(atLimit);
+});
