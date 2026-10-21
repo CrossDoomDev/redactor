@@ -228,7 +228,7 @@ test("double-click directly on highlighted token opens code dialog", async ({ pa
   await expect(span).toBeVisible();
   await span.dblclick();
   await expect(page.locator("#codeDialog")).toBeVisible();
-  await expect(page.locator("#codeTextarea")).toContainText("func");
+  await expect(page.locator("#codeTextarea")).toHaveValue(/func/);
   await expect(page.locator("#codeLanguage")).toHaveValue("gdscript");
   expect(errors).toEqual([]);
 });
@@ -262,7 +262,7 @@ test("cached older dialog HTML is upgraded when double-clicking", async ({ page 
   await expect(page.locator("#codeDialog")).toBeVisible();
   await expect(page.locator("#codeHighlight")).toBeVisible();
   await expect(page.locator("#codePreview")).toHaveCount(0);
-  await expect(page.locator("#codeTextarea")).toContainText("func");
+  await expect(page.locator("#codeTextarea")).toHaveValue(/func/);
   expect(errors).toEqual([]);
 });
 
