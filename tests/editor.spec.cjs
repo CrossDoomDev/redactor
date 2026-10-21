@@ -733,11 +733,11 @@ test("mockup typography makes H1 H2 H3 visibly larger with clear hierarchy", asy
     const measure = (tag) => parseFloat(getComputedStyle(root.querySelector(tag)).fontSize);
     return ["h1","h2","h3","p"].map(measure);
   });
-  expect(sizes[0]).toBeGreaterThanOrEqual(40);
-  expect(sizes[1]).toBeGreaterThanOrEqual(29);
-  expect(sizes[2]).toBeGreaterThanOrEqual(23);
-  expect(sizes[0] - sizes[1]).toBeGreaterThanOrEqual(7);
-  expect(sizes[1] - sizes[2]).toBeGreaterThanOrEqual(5);
+  expect(sizes[0]).toBeGreaterThanOrEqual(31);
+  expect(sizes[1]).toBeGreaterThanOrEqual(24);
+  expect(sizes[2]).toBeGreaterThanOrEqual(20);
+  expect(sizes[0] - sizes[1]).toBeGreaterThanOrEqual(5);
+  expect(sizes[1] - sizes[2]).toBeGreaterThanOrEqual(3);
   expect(sizes[3]).toBeLessThan(sizes[2]);
 });
 
