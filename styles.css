@@ -139,6 +139,7 @@ button:disabled { opacity: .5; cursor: default; }
 .editor-footer { padding: 15px 27px; background: #fafbfe; border-top: 1px solid #e9edf4; display: flex; justify-content: space-between; gap: 16px; align-items: center; color: #98a2b3; font-size: 11px; line-height: 1.5; }
 .html-badge { background: #edf2fb; padding: 5px 8px; border-radius: 5px; color: #8795b0; font-size: 9px; font-weight: 800; letter-spacing: .6px; }
 .bottom-bar { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 22px 0; }
+.bottom-buttons { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 9px; }
 .bottom-notice { display: flex; gap: 10px; align-items: center; font-size: 11px; color: #909db0; line-height: 1.55; }
 .notice-icon { font-size: 21px; color: #aaa1f7; }
 .toast {
@@ -191,5 +192,5 @@ button:disabled { opacity: .5; cursor: default; }
   .article-content { font-size: 14px; }
   .editor-footer { padding: 12px 15px; }
   .bottom-bar { align-items: stretch; flex-direction: column; }
-  .bottom-bar button { align-self: flex-end; }
+  .bottom-buttons { align-self: flex-end; }
 }
