@@ -808,14 +808,21 @@ test("HTML source editor scrolls with highlighted layer and keeps typed indentat
   await page.locator("#tabSource").click();
   const source = page.locator("#sourceEditor");
   await source.fill(Array.from({length: 100}, (_,i)=>'<p data-i="' + i + '">Строка</p>').join("\n"));
-  await source.evaluate(el => { el.scrollTop=550;el.scrollLeft=35;el.dispatchEvent(new Event("scroll")); });
-  const positions = await page.evaluate(() => {
+  const layout = await page.evaluate(() => {
     const e=document.querySelector("#sourceEditor"), d=document.querySelector("#htmlSourceHighlight");
-    return [e.scrollTop,d.scrollTop,e.scrollLeft,d.scrollLeft];
+    return {
+      textHeight:e.clientHeight, textContentHeight:e.scrollHeight,
+      highlightHeight:d.clientHeight, textScrollWidth:e.scrollWidth,
+      textClientWidth:e.clientWidth, textScrollY:e.scrollTop,
+      bodyHeight:document.documentElement.scrollHeight, viewHeight:window.innerHeight
+    };
   });
-  expect(positions[0]).toBeGreaterThan(0);
-  expect(positions[1]).toBe(positions[0]);
-  expect(positions[3]).toBe(positions[2]);
+  expect(layout.textHeight).toBeGreaterThan(1500);
+  expect(layout.textContentHeight).toBeLessThanOrEqual(layout.textHeight+3);
+  expect(layout.highlightHeight).toBe(layout.textHeight);
+  expect(layout.textScrollWidth).toBeLessThanOrEqual(layout.textClientWidth+3);
+  expect(layout.textScrollY).toBe(0);
+  expect(layout.bodyHeight).toBeGreaterThan(layout.viewHeight);
   await source.fill("<div>\n</div>");
   await source.evaluate(el=>{el.setSelectionRange(6,6);el.focus();});
   await source.press("Tab");
@@ -825,6 +832,68 @@ test("HTML source editor scrolls with highlighted layer and keeps typed indentat
   expect(await source.inputValue()).toContain("\n  </div>");
 });
 
+
+test("very long HTML attribute wraps without horizontal scroll and expands on typing", async ({ page }) => {
+  await page.locator("#tabSource").click();
+  const source=page.locator("#sourceEditor");
+  await source.fill('<p data-long="' + 'X'.repeat(4600) + '">Текст</p>');
+  const metrics=await source.evaluate(e=>({
+    clientWidth:e.clientWidth, scrollWidth:e.scrollWidth,
+    clientHeight:e.clientHeight, scrollHeight:e.scrollHeight,
+    overflowX:getComputedStyle(e).overflowX, overflowY:getComputedStyle(e).overflowY
+  }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 3);
+  expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 3);
+  expect(metrics.clientHeight).toBeGreaterThan(700);
+  expect(metrics.overflowX).toBe("hidden");
+  expect(metrics.overflowY).toBe("hidden");
+  await source.fill("<p>Короткий</p>");
+  expect(await source.evaluate(e=>e.clientHeight)).toBeLessThan(450);
+});
+
+test("preview and visual editor use almost the full available width", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor=document.querySelector("#editor");
+    editor.innerHTML='<p>Введение</p><pre data-language="gdscript"><code>func test():\n    pass</code></pre>';
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+  const layout=await page.evaluate(()=>{
+    const e=document.querySelector("#editor"), parent=e.closest(".editor-card");
+    return {inner:e.clientWidth, parent:parent.clientWidth, paddingLeft:parseFloat(getComputedStyle(e).paddingLeft)};
+  });
+  expect(layout.paddingLeft).toBeLessThanOrEqual(13);
+  await page.locator("#tabPreview").click();
+  await expect.poll(()=>page.locator("#previewFrame").evaluate(f=>!!f.contentDocument?.body)).toBe(true);
+  const preview=await page.locator("#previewFrame").evaluate(f=>{
+    const b=f.contentDocument.body, st=f.contentWindow.getComputedStyle(b);
+    const pre=b.querySelector("pre");
+    return {
+      marginLeft:parseFloat(st.marginLeft), paddingLeft:parseFloat(st.paddingLeft),
+      maxWidth:st.maxWidth, codeWeight:f.contentWindow.getComputedStyle(pre).fontWeight,
+      innerCodeWeight:f.contentWindow.getComputedStyle(pre.querySelector("code")).fontWeight,
+      width:b.getBoundingClientRect().width, frameWidth:f.clientWidth
+    };
+  });
+  expect(preview.marginLeft).toBeLessThanOrEqual(8);
+  expect(preview.paddingLeft).toBeLessThanOrEqual(11);
+  expect(preview.maxWidth).toBe("none");
+  expect(preview.width).toBeGreaterThan(preview.frameWidth-12);
+  expect(Number(preview.codeWeight)).toBeGreaterThanOrEqual(600);
+  expect(Number(preview.innerCodeWeight)).toBeGreaterThanOrEqual(600);
+});
+
+test("multiline code is semibold in visual view and code-editing modal", async ({ page }) => {
+  await page.evaluate(()=>{
+    const editor=document.getElementById("editor");
+    editor.innerHTML='<pre data-language="gdscript"><code>func example():\n    pass</code></pre>';
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+  await expect(page.locator("#editor pre")).toHaveCSS("font-weight","600");
+  await expect(page.locator("#editor pre code")).toHaveCSS("font-weight","600");
+  await page.locator("#editor pre").dblclick();
+  await expect(page.locator("#codeHighlight")).toHaveCSS("font-weight","600");
+  await expect(page.locator("#codeTextarea")).toHaveCSS("font-weight","600");
+});
 test("preview iframe grows to display long lesson and pre without internal scroll", async ({ page }) => {
   await page.evaluate(() => {
     const editor=document.querySelector("#editor");
