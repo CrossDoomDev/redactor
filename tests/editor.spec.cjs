@@ -221,6 +221,51 @@ test("double clicking protected block opens modal; changing code only on Apply",
   await expect(page.locator("#editor .code-token-keyword")).toHaveCount(0);
 });
 
+test("double-click directly on highlighted token opens code dialog", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const span = page.locator("#editor pre .code-token-keyword").first();
+  await expect(span).toBeVisible();
+  await span.dblclick();
+  await expect(page.locator("#codeDialog")).toBeVisible();
+  await expect(page.locator("#codeTextarea")).toContainText("func");
+  await expect(page.locator("#codeLanguage")).toHaveValue("gdscript");
+  expect(errors).toEqual([]);
+});
+
+test("double-click opens editor after code block is remounted", async ({ page }) => {
+  await page.locator("#tabSource").click();
+  await page.locator("#tabVisual").click();
+  const pre = page.locator("#editor pre").first();
+  await expect(pre).toHaveAttribute("contenteditable", "false");
+  await pre.locator("code").dblclick();
+  await expect(page.locator("#codeDialog")).toBeVisible();
+});
+
+test("cached older dialog HTML is upgraded when double-clicking", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.evaluate(() => {
+    const textarea = document.getElementById("codeTextarea");
+    const shell = textarea.parentElement;
+    shell.before(textarea);
+    shell.remove();
+    const heading = document.createElement("div");
+    heading.className = "code-preview-title";
+    heading.textContent = "Предпросмотр подсветки";
+    const preview = document.createElement("pre");
+    preview.id = "codePreview";
+    preview.appendChild(document.createElement("code"));
+    textarea.after(heading, preview);
+  });
+  await page.locator("#editor pre .code-token-keyword").first().dblclick();
+  await expect(page.locator("#codeDialog")).toBeVisible();
+  await expect(page.locator("#codeHighlight")).toBeVisible();
+  await expect(page.locator("#codePreview")).toHaveCount(0);
+  await expect(page.locator("#codeTextarea")).toContainText("func");
+  expect(errors).toEqual([]);
+});
+
 test("code dialog never closes from backdrop or Escape", async ({ page }) => {
   await page.locator("#editor pre").dblclick();
   const dialog = page.locator("#codeDialog");
