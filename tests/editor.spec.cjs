@@ -702,6 +702,22 @@ test("drag away from width boundary then reverse responds immediately", async ({
   await page.mouse.move(x+150,y+38);
   const afterReverse = Number(await img.getAttribute("width"));
   await page.mouse.up();
-  console.log("BOUNDARY-REVERSE", JSON.stringify({atLimit,afterReverse}));
   expect(afterReverse).toBeLessThan(atLimit);
+});
+
+test("minimum image width has no magnetic dead zone on reversing drag", async ({ page }) => {
+  const img = await prepareResizableImage(page);
+  const handle = page.locator("#imageResizeOverlay .image-resize-se");
+  await expect(handle).toBeInViewport();
+  const box = await handle.boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  await page.mouse.move(x,y);
+  await page.mouse.down();
+  await page.mouse.move(x-380,y-300,{steps:6});
+  const minWidth = Number(await img.getAttribute("width"));
+  expect(minWidth).toBe(60);
+  await page.mouse.move(x-364,y-286);
+  const afterReverse = Number(await img.getAttribute("width"));
+  await page.mouse.up();
+  expect(afterReverse).toBeGreaterThan(minWidth);
 });
