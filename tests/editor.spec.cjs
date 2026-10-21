@@ -213,7 +213,8 @@ test("double clicking protected block opens modal; changing code only on Apply",
   await page.locator("#editor pre").dblclick();
   await page.locator("#codeLanguage").selectOption("none");
   await page.locator("#codeTextarea").fill("func example():\n\tpass");
-  await expect(page.locator("#codePreview .code-token-keyword")).toHaveCount(0);
+  await expect(page.locator("#codeHighlight .code-token-keyword")).toHaveCount(0);
+  await expect(page.locator("#codePreview")).toHaveCount(0);
   await page.locator("#codeApply").click();
   await expect(page.locator("#editor pre")).toHaveAttribute("data-language", "none");
   await expect(page.locator("#editor pre")).toContainText("func example():");
@@ -252,6 +253,67 @@ test("code modal inserts tabs and auto-indent after GDScript blocks", async ({ p
   await textarea.press("End");
   await textarea.press("Enter");
   await expect(textarea).toHaveValue("if condition:\n");
+});
+
+test("syntax highlighting appears inside editable code field with no lower preview", async ({ page }) => {
+  await page.locator("#editor pre").dblclick();
+  const input = page.locator("#codeTextarea");
+  const layer = page.locator("#codeHighlight");
+  await expect(page.locator("#codePreview")).toHaveCount(0);
+  await expect(layer).toBeVisible();
+  await input.fill('func _ready():\n\tprint("Hello") # hint');
+  await expect(layer.locator(".code-token-keyword")).toContainText("func");
+  await expect(layer.locator(".code-token-string")).toContainText('"Hello"');
+  await expect(layer.locator(".code-token-comment")).toContainText("# hint");
+  expect(await layer.innerText()).toContain('func _ready():\n\tprint("Hello") # hint');
+  // The original textarea is the real interactive input; highlighting is a
+  // visually aligned, pointer-transparent layer, not a separate preview.
+  expect(await input.evaluate((el) => getComputedStyle(el).color)).toBe("rgba(0, 0, 0, 0)");
+  await page.locator("#codeLanguage").selectOption("none");
+  await expect(layer.locator("[class^=code-token-]")).toHaveCount(0);
+  await expect(input).toHaveValue('func _ready():\n\tprint("Hello") # hint');
+});
+
+test("scroll position of code highlight follows textarea in both directions", async ({ page }) => {
+  await page.locator("#editor pre").dblclick();
+  const manyLines = Array.from({ length: 90 }, (_, index) => "func line_" + index + "():\tpass").join("\n");
+  await page.locator("#codeTextarea").fill(manyLines);
+  await page.locator("#codeTextarea").evaluate((el) => {
+    el.scrollTop = 260;
+    el.scrollLeft = 80;
+    el.dispatchEvent(new Event("scroll"));
+  });
+  const offsets = await page.evaluate(() => {
+    const a = document.getElementById("codeTextarea"), b = document.getElementById("codeHighlight");
+    return { inputTop: a.scrollTop, layerTop: b.scrollTop, inputLeft: a.scrollLeft, layerLeft: b.scrollLeft };
+  });
+  expect(offsets.inputTop).toBeGreaterThan(0);
+  expect(offsets.inputTop).toBe(offsets.layerTop);
+  expect(offsets.inputLeft).toBe(offsets.layerLeft);
+});
+
+test("single Backspace removes one indentation level of tabs or four spaces", async ({ page }) => {
+  await page.locator("#editor pre").dblclick();
+  const input = page.locator("#codeTextarea");
+  await input.fill("func example():\n\t\t");
+  await input.press("End");
+  await input.press("Backspace");
+  await expect(input).toHaveValue("func example():\n\t");
+  await input.press("Backspace");
+  await expect(input).toHaveValue("func example():\n");
+
+  await input.fill("if ready:\n        ");
+  await input.press("End");
+  await input.press("Backspace");
+  await expect(input).toHaveValue("if ready:\n    ");
+  await input.press("Backspace");
+  await expect(input).toHaveValue("if ready:\n");
+
+  // Backspace in the middle of ordinary source deletes only a character.
+  await input.fill("abcdef");
+  await input.press("End");
+  await input.press("Backspace");
+  await expect(input).toHaveValue("abcde");
 });
 
 test("multi-line code text and language survive HTML mode and backup", async ({ page }) => {
