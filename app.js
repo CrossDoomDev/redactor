@@ -378,9 +378,41 @@
       pre.contains(range.startContainer) || pre.contains(range.endContainer)
       || (!range.collapsed && range.intersectsNode(pre)));
   }
+  // The GitHub Pages HTML and JS files can be cached independently. If a
+  // visitor still has the previous dialog markup, upgrade it in place instead
+  // of letting a missing highlight layer prevent the dialog from opening.
+  function ensureCodeHighlightLayer() {
+    let display = $("codeHighlight");
+    const input = $("codeTextarea");
+    if (!input) return null;
+    if (!display) {
+      let shell = input.parentElement;
+      if (!shell.classList.contains("code-input-shell")) {
+        shell = document.createElement("div");
+        shell.className = "code-input-shell";
+        input.before(shell);
+        shell.appendChild(input);
+      }
+      display = document.createElement("pre");
+      display.id = "codeHighlight";
+      display.className = "code-highlight";
+      display.setAttribute("aria-hidden", "true");
+      display.appendChild(document.createElement("code"));
+      shell.insertBefore(display, input);
+      const oldPreview = $("codePreview");
+      if (oldPreview) {
+        const heading = oldPreview.previousElementSibling;
+        if (heading && heading.classList.contains("code-preview-title")) heading.remove();
+        oldPreview.remove();
+      }
+    }
+    if (!display.querySelector("code")) display.appendChild(document.createElement("code"));
+    return display;
+  }
   function syncCodeHighlightScroll() {
     const input = $("codeTextarea");
-    const display = $("codeHighlight");
+    const display = ensureCodeHighlightLayer();
+    if (!input || !display) return;
     display.scrollTop = input.scrollTop;
     display.scrollLeft = input.scrollLeft;
   }
@@ -389,7 +421,9 @@
     const content = input.value;
     // A nonbreaking visual terminator keeps the last blank line visible,
     // without changing the actual source saved in the textarea.
-    $("codeHighlight").querySelector("code").innerHTML =
+    const display = ensureCodeHighlightLayer();
+    if (!display) return;
+    display.querySelector("code").innerHTML =
       highlightCode(content, $("codeLanguage").value) + (content.endsWith("\n") ? " " : "");
     syncCodeHighlightScroll();
   }
@@ -401,8 +435,11 @@
     $("codeDialogTitle").textContent = activeCodeBlock ? "Редактировать многострочный код" : "Добавить многострочный код";
     $("codeTextarea").value = activeCodeBlock ? activeCodeBlock.textContent : "";
     $("codeLanguage").value = activeCodeBlock?.getAttribute("data-language") === "none" ? "none" : "gdscript";
+    const dialog = $("codeDialog");
+    if (!dialog.open) dialog.showModal();
+    // Show the editor first: a cached/stale highlighting container must never
+    // block double-click editing. The renderer upgrades old markup as needed.
     refreshCodeHighlight();
-    $("codeDialog").showModal();
     $("codeTextarea").focus();
   }
   function closeCodeDialog() {
@@ -1171,9 +1208,14 @@
   $("codeTextarea").addEventListener("scroll", syncCodeHighlightScroll);
   $("codeTextarea").addEventListener("keydown", onCodeKeydown);
   editor.addEventListener("dblclick", (event) => {
-    const pre = event.target.closest("pre");
-    if (pre && editor.contains(pre)) { event.preventDefault(); openCodeDialog(pre); }
-  });
+    const target = event.target;
+    const element = target instanceof Element ? target : target?.parentElement;
+    const pre = element?.closest("pre");
+    if (!pre || !editor.contains(pre)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openCodeDialog(pre);
+  }, true);
   editor.addEventListener("cut", (event) => {
     if (selectionTouchesCode()) event.preventDefault();
   });
