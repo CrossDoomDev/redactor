@@ -683,6 +683,140 @@
       start.after(code);
     });
   }
+  function exitInlineCodeAtCaret() {
+    // A caret inside an existing code run is an editing mode, not a request
+    // to erase all the code already typed. Split the run at the caret and
+    // continue typing outside it. Selecting text still removes its code tags.
+    pendingInlineCode = false;
+    withSelectionMarkers((start) => { liftMarkerOutOf(start, "code"); });
+  }
+  function insertPendingCodeText(text) {
+    if (!text || !pendingInlineCode) return false;
+    restoreSelection();
+    const selection = window.getSelection();
+    const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+    if (!range || !editor.contains(range.commonAncestorContainer)) return false;
+    // execCommand keeps Chromium's undo stack intact, while direct Range
+    // mutation would make the first keystroke impossible to undo.
+    const markup = '<code data-pending-code-entry="1">' + escapeHtml(text) + '</code>';
+    const inserted = document.execCommand("insertHTML", false, markup);
+    if (!inserted) return false;
+    const code = editor.querySelector('code[data-pending-code-entry="1"]');
+    if (code) {
+      code.removeAttribute("data-pending-code-entry");
+      const lastText = code.lastChild;
+      if (lastText && lastText.nodeType === Node.TEXT_NODE) {
+        const caret = document.createRange();
+        caret.setStart(lastText, lastText.textContent.length);
+        caret.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(caret);
+      }
+    }
+    pendingInlineCode = false;
+    afterFormatting();
+    return true;
+  }
+
+  function openLinkDialog() {
+    if (mode !== "visual") return;
+    pendingInlineCode = false;
+    restoreSelection();
+    linkRange = editorRange();
+    const selected = linkRange ? selectedTextNodes(linkRange) : [];
+    editingLink = linkRange
+      ? (ancestor(linkRange.startContainer, "a[href]") || (selected.length && ancestor(selected[0], "a[href]")) || null)
+      : null;
+    $("linkDialogTitle").textContent = editingLink ? "Изменить ссылку" : "Вставить ссылку";
+    $("linkText").value = editingLink ? editingLink.textContent : (linkRange ? linkRange.toString() : "");
+    $("linkUrl").value = editingLink ? (editingLink.getAttribute("href") || "") : "";
+    $("linkRemove").hidden = !editingLink;
+    $("linkHelp").classList.remove("error");
+    $("linkHelp").textContent = "Разрешены HTTP, HTTPS, mailto и внутренние ссылки.";
+    $("linkDialog").showModal();
+    $("linkUrl").focus();
+  }
+  function closeLinkDialog() {
+    $("linkDialog").close();
+    editingLink = null;
+    linkRange = null;
+  }
+  function applyLinkSelection() {
+    if (!linkRange || !editor.contains(linkRange.commonAncestorContainer)) {
+      editor.focus();
+      return;
+    }
+    editor.focus();
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(linkRange.cloneRange());
+    captureSelection();
+  }
+  function updateLink(event) {
+    event.preventDefault();
+    const value = $("linkUrl").value.trim();
+    const url = safeLink(value);
+    if (!url) {
+      $("linkHelp").textContent = "Укажи безопасный адрес: https://, http://, mailto: или /путь.";
+      $("linkHelp").classList.add("error");
+      $("linkUrl").focus();
+      return;
+    }
+    const text = $("linkText").value.trim();
+    if (!text) {
+      $("linkHelp").textContent = "Текст ссылки не может быть пустым.";
+      $("linkHelp").classList.add("error");
+      $("linkText").focus();
+      return;
+    }
+    const target = editingLink && editingLink.isConnected ? editingLink : null;
+    const originalRange = linkRange ? linkRange.cloneRange() : null;
+    closeLinkDialog();
+    if (target) {
+      target.href = url;
+      target.setAttribute("rel", "noopener noreferrer");
+      target.setAttribute("target", "_blank");
+      if (target.textContent !== text) target.textContent = text;
+      editor.focus();
+      const caret = document.createRange();
+      caret.selectNodeContents(target);
+      caret.collapse(false);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(caret);
+      afterFormatting();
+      toast("Ссылка обновлена.");
+      return;
+    }
+    applySavedLinkRange(url, text, originalRange);
+    toast("Ссылка создана.");
+  }
+  function applySavedLinkRange(url, text, originalRange) {
+    // The dialog has already closed, so the saved editor Range is restored
+    // before inserting new HTML in place of the highlighted fragment.
+    linkRange = originalRange;
+    applyLinkSelection();
+    linkRange = null;
+    insertHtml('<a href="' + escapeHtml(url) + '">' + escapeHtml(text) + '</a>');
+  }
+  function removeEditedLink() {
+    if (!editingLink || !editingLink.isConnected) { closeLinkDialog(); return; }
+    const target = editingLink;
+    const content = Array.from(target.childNodes);
+    closeLinkDialog();
+    target.replaceWith(...content);
+    editor.focus();
+    const selection = window.getSelection();
+    const caret = document.createRange();
+    if (content.length) caret.setStartAfter(content[content.length - 1]);
+    else { caret.selectNodeContents(editor); caret.collapse(false); }
+    caret.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(caret);
+    afterFormatting();
+    toast("Ссылка удалена, текст сохранён.");
+  }
+
   function clearBlockquote(element) {
     const children = Array.from(element.childNodes);
     const hasBlocks = children.some((node) => node.nodeType === 1
@@ -730,8 +864,14 @@
     const selection = window.getSelection();
     const selectedText = selection && selection.rangeCount ? selection.toString() : "";
     if (action === "inlineCode") {
-      if (states.inlineCode) removeInlineFromSelection("code");
-      else addInlineCode();
+      const range = editorRange();
+      if (pendingInlineCode) {
+        pendingInlineCode = false;
+        setToolbarState();
+      } else if (states.inlineCode) {
+        if (range && range.collapsed) exitInlineCodeAtCaret();
+        else removeInlineFromSelection("code");
+      } else addInlineCode();
     } else if (action === "quote") {
       if (states.quote) removeBlockFormat("blockquote", clearBlockquote);
       else runCommand("formatBlock", "blockquote");
@@ -739,18 +879,7 @@
       if (states.codeBlock) removeBlockFormat("pre", clearPre);
       else insertHtml("<pre><code>" + escapeHtml(selectedText || "Введите код...") + "</code></pre><p></p>");
     } else if (action === "link") {
-      if (states.link) {
-        removeInlineFromSelection("a[href]");
-        return;
-      }
-      const raw = window.prompt("Адрес ссылки (https://...):", "https://");
-      if (raw === null) return;
-      const url = safeLink(raw);
-      if (!url) { toast("Разрешены ссылки http, https, mailto или внутренние ссылки."); return; }
-      restoreSelection();
-      if (selectedText.trim()) document.execCommand("createLink", false, url);
-      else insertHtml('<a href="' + escapeHtml(url) + '">' + escapeHtml(url) + "</a>");
-      afterFormatting();
+      openLinkDialog();
     }
   }
 
@@ -850,6 +979,31 @@
 
   // Rich HTML clipboard is preferred; Markdown is a fallback for "Copy" buttons
   // that expose only text/plain.
+  editor.addEventListener("beforeinput", (event) => {
+    if (!pendingInlineCode || event.isComposing) return;
+    if (event.inputType === "insertText" && event.data) {
+      if (insertPendingCodeText(event.data)) event.preventDefault();
+    }
+  });
+  editor.addEventListener("compositionend", () => {
+    // Some IMEs insert text through composition rather than insertText.
+    // Reconcile the pending-mode indicator with the actual caret position.
+    if (pendingInlineCode) { pendingInlineCode = false; setToolbarState(); }
+  });
+  editor.addEventListener("keydown", (event) => {
+    if (pendingInlineCode && ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End","Escape","Enter"].includes(event.key)) {
+      pendingInlineCode = false;
+      setToolbarState();
+    }
+  });
+  editor.addEventListener("click", () => {
+    if (pendingInlineCode) { pendingInlineCode = false; setToolbarState(); }
+  });
+  $("linkForm").addEventListener("submit", updateLink);
+  $("linkRemove").addEventListener("click", removeEditedLink);
+  $("linkCancel").addEventListener("click", closeLinkDialog);
+  $("linkCancelTop").addEventListener("click", closeLinkDialog);
+  $("linkDialog").addEventListener("close", () => { editingLink = null; linkRange = null; });
   editor.addEventListener("paste", (event) => {
     const clipboard = event.clipboardData;
     if (!clipboard) return;
