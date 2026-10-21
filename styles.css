@@ -302,3 +302,24 @@ button:disabled { opacity: .5; cursor: default; }
 .article-content figure.lesson-image[style*="text-align: right"] { text-align: right; }
 @media (max-width: 800px) { .formatbar { top: 64px; } }
 @media (max-width: 580px) { .color-palette { left: -85px; } .image-sizing { padding-left: 3px; } }
+
+
+/* Overlay handles are editor UI only; they live outside contenteditable. */
+.image-resize-overlay {
+  position: fixed; z-index: 35; display: none; pointer-events: none;
+  box-sizing: border-box; outline: 1px solid rgba(103, 89, 232, .78);
+}
+.image-resize-overlay.visible { display: block; }
+.image-resize-handle {
+  position: absolute; box-sizing: border-box; width: 12px; height: 12px;
+  border: 2px solid #fff; background: #705ff1; border-radius: 2px;
+  box-shadow: 0 0 0 1px #5647c5, 0 2px 5px rgba(24,34,67,.32);
+  pointer-events: auto; touch-action: none; user-select: none;
+  -webkit-user-select: none; transition: background-color .1s;
+}
+.image-resize-handle:hover { background: #4c38d6; }
+.image-resize-nw { left: -6px; top: -6px; cursor: nwse-resize; }
+.image-resize-ne { right: -6px; top: -6px; cursor: nesw-resize; }
+.image-resize-sw { left: -6px; bottom: -6px; cursor: nesw-resize; }
+.image-resize-se { right: -6px; bottom: -6px; cursor: nwse-resize; }
+.resizing-lesson-image, .resizing-lesson-image * { user-select: none !important; -webkit-user-select: none !important; cursor: nwse-resize !important; }
