@@ -22,6 +22,7 @@
   let savedRange = null;
   let sourceSnapshot = null;
   let pendingInlineCode = false;
+  let nextPlainTextRange = null;
   let editingLink = null;
   let linkRange = null;
 
@@ -689,6 +690,32 @@
     // continue typing outside it. Selecting text still removes its code tags.
     pendingInlineCode = false;
     withSelectionMarkers((start) => { liftMarkerOutOf(start, "code"); });
+    nextPlainTextRange = editorRange();
+  }
+  function insertPlainTextOutsideCode(text) {
+    if (!nextPlainTextRange || !text) return false;
+    restoreSelection();
+    const selection = window.getSelection();
+    const range = nextPlainTextRange.cloneRange();
+    if (!editor.contains(range.commonAncestorContainer)) {
+      nextPlainTextRange = null;
+      return false;
+    }
+    const insideCode = ancestor(range.startContainer, "code");
+    if (insideCode) {
+      range.setStartAfter(insideCode);
+      range.collapse(true);
+    }
+    const plainNode = document.createTextNode(text);
+    range.insertNode(plainNode);
+    const caret = document.createRange();
+    caret.setStart(plainNode, plainNode.length);
+    caret.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(caret);
+    nextPlainTextRange = null;
+    afterFormatting();
+    return true;
   }
   function insertPendingCodeText(text) {
     if (!text || !pendingInlineCode) return false;
@@ -975,9 +1002,13 @@
   // Rich HTML clipboard is preferred; Markdown is a fallback for "Copy" buttons
   // that expose only text/plain.
   editor.addEventListener("beforeinput", (event) => {
-    if (!pendingInlineCode || event.isComposing) return;
+    if (event.isComposing) return;
     if (event.inputType === "insertText" && event.data) {
-      if (insertPendingCodeText(event.data)) event.preventDefault();
+      if (nextPlainTextRange && insertPlainTextOutsideCode(event.data)) {
+        event.preventDefault();
+        return;
+      }
+      if (pendingInlineCode && insertPendingCodeText(event.data)) event.preventDefault();
     }
   });
   editor.addEventListener("compositionend", () => {
@@ -988,10 +1019,12 @@
   editor.addEventListener("keydown", (event) => {
     if (pendingInlineCode && ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End","Escape","Enter"].includes(event.key)) {
       pendingInlineCode = false;
+      nextPlainTextRange = null;
       setToolbarState();
     }
   });
   editor.addEventListener("click", () => {
+    nextPlainTextRange = null;
     if (pendingInlineCode) { pendingInlineCode = false; setToolbarState(); }
   });
   $("linkForm").addEventListener("submit", updateLink);
