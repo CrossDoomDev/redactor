@@ -450,3 +450,16 @@ body { background: #f8f9fd; color: var(--ink); }
   .tool-button { width: 33px; min-width: 33px; height: 33px; }
   .tool-divider { margin-inline: 3px; }
 }
+
+/* Reference-inspired code block label (editor chrome, not lesson content). */
+.rich-editor pre[contenteditable="false"]::before {
+  content: "GDScript  ·  Двойной щелчок для редактирования";
+  display: block; margin: -19px -19px 15px; padding: 10px 17px;
+  background: #eae6fe; border-bottom: 1px solid #ddd5ff;
+  border-radius: 10px 10px 0 0;
+  color: #544c8b; font: 600 11px/1.7 Inter,sans-serif;
+  text-align: left; opacity: 1;
+}
+.rich-editor pre[data-language="none"][contenteditable="false"]::before {
+  content: "No Highlight  ·  Двойной щелчок для редактирования";
+}
