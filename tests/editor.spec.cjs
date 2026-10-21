@@ -773,8 +773,9 @@ test("lavender syntax colors appear in lesson, editing dialog, and exported HTML
   await page.locator("#codeCancel").click();
   await page.locator("#tabPreview").click();
   const srcDoc = await page.locator("#previewFrame").getAttribute("srcdoc");
-  expect(srcDoc).toContain("background:#f4f1ff");
-  expect(srcDoc).toContain("font-size:48px");
+  expect(srcDoc).toContain("--code-surface:#f4f1ff");
+  expect(srcDoc).toContain("background:var(--code-surface)");
+  expect(srcDoc).toContain("font-size:36px");
 });
 
 test("redesigned toolbar stays sticky during page scroll", async ({ page }) => {
@@ -786,4 +787,101 @@ test("redesigned toolbar stays sticky during page scroll", async ({ page }) => {
   });
   await expect.poll(() => page.locator("#formatbar").evaluate(el => Math.round(el.getBoundingClientRect().top))).toBe(72);
   await expect(page.locator("#formatbar")).toHaveCSS("position", "sticky");
+});
+
+
+test("HTML source highlights tags, attribute values and comments without changing source", async ({ page }) => {
+  await page.locator("#tabSource").click();
+  const html = '<!-- Тест -->\n<section class="lesson" data-x="test">\n  <h2 style="color: #ff0000">Текст &amp; значение</h2>\n</section>';
+  await page.locator("#sourceEditor").fill(html);
+  const layer = page.locator("#htmlSourceHighlight");
+  await expect(layer.locator(".html-token-comment")).toContainText("<!-- Тест -->");
+  await expect(layer.locator(".html-token-tag").first()).toHaveText("section");
+  await expect(layer.locator(".html-token-attribute").first()).toHaveText("class");
+  await expect(layer.locator(".html-token-string").first()).toHaveText('"lesson"');
+  await expect(layer.locator(".html-token-entity")).toContainText("&amp;");
+  await expect(page.locator("#sourceEditor")).toHaveValue(html);
+  expect(await page.locator("#sourceEditor").evaluate(el => getComputedStyle(el).caretColor)).not.toBe("rgba(0, 0, 0, 0)");
+});
+
+test("HTML source editor scrolls with highlighted layer and keeps typed indentation", async ({ page }) => {
+  await page.locator("#tabSource").click();
+  const source = page.locator("#sourceEditor");
+  await source.fill(Array.from({length: 100}, (_,i)=>'<p data-i="' + i + '">Строка</p>').join("\n"));
+  await source.evaluate(el => { el.scrollTop=550;el.scrollLeft=35;el.dispatchEvent(new Event("scroll")); });
+  const positions = await page.evaluate(() => {
+    const e=document.querySelector("#sourceEditor"), d=document.querySelector("#htmlSourceHighlight");
+    return [e.scrollTop,d.scrollTop,e.scrollLeft,d.scrollLeft];
+  });
+  expect(positions[0]).toBeGreaterThan(0);
+  expect(positions[1]).toBe(positions[0]);
+  expect(positions[3]).toBe(positions[2]);
+  await source.fill("<div>\n</div>");
+  await source.evaluate(el=>{el.setSelectionRange(6,6);el.focus();});
+  await source.press("Tab");
+  await expect(source).toHaveValue("<div>\n  </div>");
+  await page.locator("#tabVisual").click();
+  await page.locator("#tabSource").click();
+  expect(await source.inputValue()).toContain("\n  </div>");
+});
+
+test("preview iframe grows to display long lesson and pre without internal scroll", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor=document.querySelector("#editor");
+    editor.innerHTML=Array.from({length:65},(_,i)=>"<p>Абзац №"+i+"</p>").join("")+
+      '<pre data-language="gdscript"><code>'+
+      Array.from({length:75},(_,i)=>"func line_"+i+"():\n    print('long code line')").join("\n")+"</code></pre>";
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+  await page.locator("#tabPreview").click();
+  const frame=page.locator("#previewFrame");
+  await expect.poll(() => frame.evaluate(el=>el.clientHeight)).toBeGreaterThan(3500);
+  const data=await frame.evaluate(frame=>{
+    const doc=frame.contentDocument, pre=doc.querySelector("pre");
+    return {
+      height:frame.clientHeight, docHeight:doc.documentElement.scrollHeight,
+      preOverflow:getComputedStyle(pre).overflowX,
+      codeBg:getComputedStyle(pre).backgroundColor, sandbox:frame.getAttribute("sandbox")
+    };
+  });
+  expect(data.docHeight).toBeLessThanOrEqual(data.height+5);
+  expect(data.preOverflow).not.toBe("auto");
+  expect(data.codeBg).toBe("rgb(244, 241, 255)");
+  expect(data.sandbox).toBe("allow-same-origin");
+});
+
+test("preview frame gets shorter when lesson is replaced by short content", async ({ page }) => {
+  await page.evaluate(() => {
+    const editor=document.querySelector("#editor");
+    editor.innerHTML=Array.from({length:85},(_,i)=>"<p>Длинный абзац "+i+"</p>").join("");
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+  await page.locator("#tabPreview").click();
+  await expect.poll(() => page.locator("#previewFrame").evaluate(e=>e.clientHeight)).toBeGreaterThan(2500);
+  await page.locator("#tabVisual").click();
+  await page.evaluate(() => {
+    const editor=document.querySelector("#editor");
+    editor.innerHTML="<p>Короткий урок</p>";
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+  await page.locator("#tabPreview").click();
+  await expect.poll(() => page.locator("#previewFrame").evaluate(e=>e.clientHeight)).toBeLessThan(600);
+});
+
+test("same code-surface variable colors editor, code dialog and preview", async ({ page }) => {
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--code-surface","#e7f5ff");
+    const editor=document.querySelector("#editor");
+    editor.innerHTML='<pre data-language="gdscript"><code>func test():\n    pass</code></pre>';
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
+  });
+  await expect(page.locator("#editor pre")).toHaveCSS("background-color","rgb(231, 245, 255)");
+  await page.locator("#editor pre").dblclick();
+  await expect(page.locator("#codeHighlight")).toHaveCSS("background-color","rgb(231, 245, 255)");
+  await page.locator("#codeCancel").click();
+  await page.locator("#tabPreview").click();
+  await expect.poll(() => page.locator("#previewFrame").evaluate(e =>
+    getComputedStyle(e.contentDocument.querySelector("pre")).backgroundColor)).toBe("rgb(231, 245, 255)");
+  const html=await page.locator("#previewFrame").getAttribute("srcdoc");
+  expect(html).toContain("--code-surface:#e7f5ff");
 });
