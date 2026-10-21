@@ -592,3 +592,61 @@ test("corner handle overlay repositions when page scrolls", async ({ page }) => 
     await expect.poll(async () => (await overlay.boundingBox())?.y).toBeCloseTo(second.y, 0);
   }
 });
+
+test("panoramic image resizes smoothly past 490 px when pointer direction changes", async ({ page }) => {
+  // Reproduces the former discontinuity: for a very wide image a tiny
+  // vertical movement made the old max(dx,dy*aspect) expression leap.
+  await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2000;
+    canvas.height = 50;
+    const editor = document.querySelector("#editor");
+    editor.innerHTML = '<figure class="lesson-image" style="text-align: left"><img alt="Широкое изображение" width="450" src="' +
+      canvas.toDataURL("image/png") + '"></figure><p>После иллюстрации</p>';
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const img = page.locator("#editor figure.lesson-image img");
+  await expect.poll(() => img.evaluate(el => el.naturalWidth)).toBe(2000);
+  await img.scrollIntoViewIfNeeded();
+  await img.hover();
+  const handle = page.locator("#imageResizeOverlay .image-resize-se");
+  await expect(handle).toBeInViewport();
+  const rect = await handle.boundingBox();
+  const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 39, y);
+  const widthBefore = Number(await img.getAttribute("width"));
+  expect(widthBefore).toBeGreaterThanOrEqual(486);
+  expect(widthBefore).toBeLessThanOrEqual(493);
+  // The old implementation jumped from ~489 to ~530 here, even though
+  // the pointer moved just one horizontal and two vertical pixels.
+  await page.mouse.move(x + 40, y + 2);
+  const widthAfter = Number(await img.getAttribute("width"));
+  expect(Math.abs(widthAfter - widthBefore)).toBeLessThanOrEqual(4);
+  await page.mouse.move(x + 41, y + 3);
+  const widthThird = Number(await img.getAttribute("width"));
+  expect(Math.abs(widthThird - widthAfter)).toBeLessThanOrEqual(4);
+  await page.mouse.up();
+  await page.locator("#tabSource").click();
+  expect(await page.locator("#sourceEditor").inputValue()).toContain('width="' + widthThird + '"');
+});
+
+test("continuous diagonal resize remains monotone with varying X and Y movement", async ({ page }) => {
+  const img = await prepareResizableImage(page);
+  const handle = page.locator("#imageResizeOverlay .image-resize-se");
+  const rect = await handle.boundingBox();
+  const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  const samples = [];
+  for (const [dx, dy] of [[10, 4], [20, 8], [30, 9], [40, 10], [50, 15], [60, 17]]) {
+    await page.mouse.move(x + dx, y + dy);
+    samples.push(Number(await img.getAttribute("width")));
+  }
+  await page.mouse.up();
+  for (let i = 1; i < samples.length; i++) {
+    expect(samples[i]).toBeGreaterThanOrEqual(samples[i - 1]);
+    expect(samples[i] - samples[i - 1]).toBeLessThanOrEqual(15);
+  }
+});
