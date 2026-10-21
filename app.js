@@ -90,6 +90,11 @@
       if (tag === "pre") {
         const language = (from.getAttribute("data-language") || from.getAttribute("data-lang") || "").trim().toLowerCase();
         clean.setAttribute("data-language", language === "none" ? "none" : "gdscript");
+        const plainCode = document.createElement("code");
+        plainCode.textContent = from.textContent || "";
+        clean.appendChild(plainCode);
+        into.appendChild(clean);
+        return;
       }
       if (tag === "a") {
         const href = safeLink(from.getAttribute("href") || "");
@@ -657,6 +662,10 @@
   }
   function setToolbarState() {
     const range = mode === "visual" ? editorRange() : null;
+    const codeProtected = mode === "visual" && selectionTouchesCode(range);
+    formatbar.querySelectorAll("button,select").forEach((control) => {
+      control.disabled = mode !== "visual" || codeProtected;
+    });
     const states = queryActiveStates();
     formatbar.querySelectorAll("button").forEach((button) => {
       const key = button.dataset.command || button.dataset.action;
@@ -677,7 +686,7 @@
     setToolbarState();
   }
   function runCommand(command, value) {
-    if (mode !== "visual") return;
+    if (mode !== "visual" || selectionTouchesCode()) return;
     restoreSelection();
     const state = queryActiveStates();
     const inlineSelectors = { bold: "b,strong", italic: "i,em", underline: "u" };
@@ -697,6 +706,7 @@
     afterFormatting();
   }
   function insertHtml(html) {
+    if (selectionTouchesCode()) return;
     restoreSelection();
     document.execCommand("insertHTML", false, sanitizeHtml(html));
     afterFormatting();
@@ -998,7 +1008,7 @@
     });
   }
   function specialAction(action) {
-    if (mode !== "visual") return;
+    if (mode !== "visual" || selectionTouchesCode()) return;
     restoreSelection();
     const states = queryActiveStates();
     const selection = window.getSelection();
@@ -1016,8 +1026,7 @@
       if (states.quote) removeBlockFormat("blockquote", clearBlockquote);
       else runCommand("formatBlock", "blockquote");
     } else if (action === "codeBlock") {
-      if (states.codeBlock) removeBlockFormat("pre", clearPre);
-      else insertHtml("<pre><code>" + escapeHtml(selectedText || "Введите код...") + "</code></pre><p></p>");
+      openCodeDialog();
     } else if (action === "link") {
       openLinkDialog();
     }
@@ -1119,7 +1128,24 @@
 
   // Rich HTML clipboard is preferred; Markdown is a fallback for "Copy" buttons
   // that expose only text/plain.
+  $("codeDialog").addEventListener("cancel", (event) => event.preventDefault());
+  $("codeCancel").addEventListener("click", closeCodeDialog);
+  $("codeForm").addEventListener("submit", applyCodeDialog);
+  $("codeLanguage").addEventListener("change", refreshCodePreview);
+  $("codeTextarea").addEventListener("input", refreshCodePreview);
+  $("codeTextarea").addEventListener("keydown", onCodeKeydown);
+  editor.addEventListener("dblclick", (event) => {
+    const pre = event.target.closest("pre");
+    if (pre && editor.contains(pre)) { event.preventDefault(); openCodeDialog(pre); }
+  });
+  editor.addEventListener("cut", (event) => {
+    if (selectionTouchesCode()) event.preventDefault();
+  });
+  editor.addEventListener("drop", (event) => {
+    if (selectionTouchesCode()) event.preventDefault();
+  });
   editor.addEventListener("beforeinput", (event) => {
+    if (selectionTouchesCode()) { event.preventDefault(); return; }
     if (event.isComposing) return;
     if (event.inputType === "insertText" && event.data) {
       if (plainTypingNode && insertPlainTextOutsideCode(event.data)) {
@@ -1135,6 +1161,12 @@
     if (pendingInlineCode) { pendingInlineCode = false; setToolbarState(); }
   });
   editor.addEventListener("keydown", (event) => {
+    if (selectionTouchesCode() &&
+      (event.key === "Backspace" || event.key === "Delete"
+       || ((event.ctrlKey || event.metaKey) && /^[biuxv]$/i.test(event.key)))) {
+      event.preventDefault();
+      return;
+    }
     if (pendingInlineCode && ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End","Escape","Enter"].includes(event.key)) {
       pendingInlineCode = false;
       plainTypingNode = null;
@@ -1151,6 +1183,7 @@
   $("linkCancelTop").addEventListener("click", closeLinkDialog);
   $("linkDialog").addEventListener("close", () => { editingLink = null; linkRange = null; });
   editor.addEventListener("paste", (event) => {
+    if (selectionTouchesCode()) { event.preventDefault(); return; }
     const clipboard = event.clipboardData;
     if (!clipboard) return;
     const rich = clipboard.getData("text/html");
