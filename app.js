@@ -504,6 +504,14 @@
     if (mode !== "visual") return;
     restoreSelection();
     const state = queryActiveStates();
+    const inlineSelectors = { bold: "b,strong", italic: "i,em", underline: "u" };
+    if (inlineSelectors[command] && state[command]
+      && hasFormatting(editorRange(), inlineSelectors[command])) {
+      // Native execCommand at a collapsed caret only toggles future typing.
+      // Unwrap the currently formatted run instead, preserving surrounding styles.
+      removeInlineFromSelection(inlineSelectors[command]);
+      return;
+    }
     // Clicking the current alignment resets the block to normal left alignment.
     if (["justifyCenter", "justifyRight"].includes(command) && state[command]) {
       document.execCommand("justifyLeft", false, null);
