@@ -1393,6 +1393,59 @@
 
   // Rich HTML clipboard is preferred; Markdown is a fallback for "Copy" buttons
   // that expose only text/plain.
+  TEXT_COLORS.forEach((color) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "color-swatch";
+    button.style.backgroundColor = color;
+    button.title = color;
+    button.setAttribute("aria-label", "Применить цвет " + color);
+    button.addEventListener("click", () => setTextColor(color));
+    $("colorSwatches").appendChild(button);
+  });
+  $("textColorButton").addEventListener("click", () => {
+    if (mode !== "visual" || selectionTouchesCode() || selectedImage?.isConnected) return;
+    const opening = $("colorPalette").hidden;
+    $("colorPalette").hidden = !opening;
+    $("textColorButton").setAttribute("aria-expanded", String(opening));
+  });
+  $("customTextColor").addEventListener("input", (event) => {
+    // Native color pickers may consume focus; the editor Range is retained.
+    setTextColor(event.target.value);
+  });
+  $("resetTextColor").addEventListener("click", resetTextColor);
+  document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest("#colorTool")) closeColorPalette();
+  });
+  $("insertImageButton").addEventListener("click", () => {
+    if (mode !== "visual" || selectionTouchesCode()) return;
+    imageInsertRange = editorRange();
+    $("imageFileInput").click();
+  });
+  $("imageFileInput").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    await importImageFile(file, imageInsertRange);
+    imageInsertRange = null;
+  });
+  $("shrinkImage").addEventListener("click", () => scaleLessonImage(.8));
+  $("growImage").addEventListener("click", () => scaleLessonImage(1.25));
+  editor.addEventListener("click", (event) => {
+    const element = event.target instanceof Element ? event.target : event.target.parentElement;
+    const img = element?.closest("img");
+    if (img && editor.contains(img)) {
+      selectLessonImage(img);
+      const range = document.createRange();
+      range.selectNode(img.closest("figure") || img);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      savedRange = range.cloneRange();
+    } else {
+      selectLessonImage(null);
+    }
+    setToolbarState();
+  });
   $("codeDialog").addEventListener("cancel", (event) => event.preventDefault());
   $("codeCancel").addEventListener("click", closeCodeDialog);
   $("codeForm").addEventListener("submit", applyCodeDialog);
@@ -1457,6 +1510,15 @@
     if (selectionTouchesCode()) { event.preventDefault(); return; }
     const clipboard = event.clipboardData;
     if (!clipboard) return;
+    const imageItem = Array.from(clipboard.items || []).find((item) => item.kind === "file" && /^image\//.test(item.type));
+    if (imageItem) {
+      const file = imageItem.getAsFile();
+      if (file) {
+        event.preventDefault();
+        void importImageFile(file, editorRange());
+        return;
+      }
+    }
     const rich = clipboard.getData("text/html");
     const plain = clipboard.getData("text/plain");
     if (!rich && !plain) return;
