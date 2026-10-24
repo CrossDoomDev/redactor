@@ -384,7 +384,7 @@
     return "lesson-" + Date.now() + "-" + Math.random().toString(36).slice(2);
   }
   function newProject() {
-    return { version: 1, activeId: "welcome", markdown: true, lessons: starterLessons.map((lesson) => ({ ...lesson })) };
+    return { version: 2, activeId: "welcome", markdown: true, lessons: starterLessons.map((lesson) => ({ ...lesson })), modules: [{ id: "module-1", title: "Модуль 1. Введение", lessonIds: starterLessons.map(lesson => lesson.id), expanded: true }] };
   }
   function validateProject(input) {
     if (!input || !Array.isArray(input.lessons) || input.lessons.length === 0 || input.lessons.length > 300) return null;
@@ -401,7 +401,20 @@
       };
     });
     const active = lessons.some((lesson) => lesson.id === input.activeId) ? input.activeId : lessons[0].id;
-    return { version: 1, activeId: active, markdown: input.markdown !== false, lessons: lessons };
+    const validIds = new Set(lessons.map(l => l.id));
+    const used = new Set();
+    const modules = Array.isArray(input.modules) ? input.modules.slice(0,100).map((m,i) => ({
+      id: String(m.id || "module-" + i).slice(0,90),
+      title: String(m.title || "Модуль " + (i+1)).slice(0,160),
+      expanded: m.expanded !== false,
+      lessonIds: Array.isArray(m.lessonIds) ? m.lessonIds.filter(id => {
+        if (!validIds.has(id) || used.has(id)) return false;
+        used.add(id); return true;
+      }) : []
+    })) : [];
+    if (!modules.length) modules.push({ id: makeId(), title: "Модуль 1. Введение", expanded: true, lessonIds: [] });
+    lessons.forEach(l => { if (!used.has(l.id)) modules[0].lessonIds.push(l.id); });
+    return { version: 2, activeId: active, markdown: input.markdown !== false, lessons, modules };
   }
   function loadProject() {
     try {
@@ -428,24 +441,100 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => element.classList.remove("visible"), 3200);
   }
+  function moduleForLesson(id) {
+    return project.modules.find(m => m.lessonIds.includes(id)) || project.modules[0];
+  }
   function renderLessons() {
     lessonList.replaceChildren();
-    project.lessons.forEach((lesson, index) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "lesson-item" + (lesson.id === project.activeId ? " active" : "");
-      button.setAttribute("aria-current", lesson.id === project.activeId ? "page" : "false");
-      button.title = lesson.title;
-      const icon = document.createElement("span");
-      icon.className = "lesson-icon";
-      icon.textContent = String(index + 1).padStart(2, "0");
-      const name = document.createElement("span");
-      name.className = "lesson-item-name";
-      name.textContent = lesson.title;
-      button.append(icon, name);
-      button.addEventListener("click", () => switchLesson(lesson.id));
-      lessonList.appendChild(button);
+    project.modules.forEach((module, mi) => {
+      const group = document.createElement("div");
+      group.className = "course-module";
+      const heading = document.createElement("div");
+      heading.className = "course-module-heading";
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "module-toggle";
+      toggle.setAttribute("aria-expanded", String(module.expanded !== false));
+      toggle.textContent = (module.expanded === false ? "▸ " : "▾ ") + (mi + 1) + ". " + module.title;
+      toggle.title = "Свернуть или раскрыть модуль";
+      toggle.addEventListener("click", () => { module.expanded = module.expanded === false; renderLessons(); persistStructure(); });
+      const actions = document.createElement("button");
+      actions.type = "button";
+      actions.className = "module-menu";
+      actions.textContent = "⋯";
+      actions.title = "Настройки модуля";
+      actions.addEventListener("click", () => {
+        const action = prompt("Действие с модулем: 1 — переименовать, 2 — добавить урок, 3 — удалить пустой модуль, 4 — переместить выше, 5 — переместить ниже", "1");
+        if (action === "1") {
+          const title = prompt("Название модуля", module.title);
+          if (title?.trim()) module.title = title.trim().slice(0,160);
+        } else if (action === "2") { createLesson(module.id); return; }
+        else if (action === "3") {
+          if (module.lessonIds.length) { toast("Сначала перенесите уроки в другой модуль."); return; }
+          if (project.modules.length === 1) { toast("Последний модуль удалить нельзя."); return; }
+          if (confirm("Удалить пустой модуль?")) project.modules.splice(mi,1);
+        } else if (action === "4" && mi > 0) [project.modules[mi-1],project.modules[mi]] = [project.modules[mi],project.modules[mi-1]];
+        else if (action === "5" && mi < project.modules.length-1) [project.modules[mi+1],project.modules[mi]] = [project.modules[mi],project.modules[mi+1]];
+        renderLessons(); persistStructure();
+      });
+      heading.append(toggle, actions);
+      group.append(heading);
+      if (module.expanded !== false) {
+        module.lessonIds.forEach((id, li) => {
+          const lesson = project.lessons.find(l => l.id === id);
+          if (!lesson) return;
+          const row = document.createElement("div");
+          row.className = "module-lesson-row";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "lesson-item" + (lesson.id === project.activeId ? " active" : "");
+          button.setAttribute("aria-current", lesson.id === project.activeId ? "page" : "false");
+          button.title = lesson.title;
+          const icon = document.createElement("span");
+          icon.className = "lesson-icon";
+          icon.textContent = (mi + 1) + "." + (li + 1);
+          const name = document.createElement("span");
+          name.className = "lesson-item-name";
+          name.textContent = lesson.title;
+          button.append(icon,name);
+          button.addEventListener("click", () => switchLesson(lesson.id));
+          const move = document.createElement("button");
+          move.type = "button"; move.className = "lesson-more"; move.textContent = "⋮";
+          move.title = "Переместить урок";
+          move.addEventListener("click", () => {
+            const names = project.modules.map((m,i) => (i+1) + ": " + m.title).join("\n");
+            const value = prompt("Переместить урок в модуль (введите номер):\n" + names, String(mi+1));
+            if (value === null) return;
+            const target = project.modules[Number(value)-1];
+            if (!target) { toast("Такого модуля нет."); return; }
+            module.lessonIds = module.lessonIds.filter(x => x !== id);
+            target.lessonIds.push(id); target.expanded = true;
+            renderLessons(); persistStructure();
+          });
+          row.append(button,move); group.append(row);
+        });
+        const add = document.createElement("button");
+        add.type = "button"; add.className = "module-add-lesson";
+        add.textContent = "＋ Добавить урок";
+        add.addEventListener("click", () => createLesson(module.id));
+        group.append(add);
+      }
+      lessonList.append(group);
     });
+  }
+  function persistStructure() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(project)); }
+    catch (_) { toast("Не удалось сохранить структуру. Экспортируйте JSON."); }
+  }
+  function createLesson(moduleId) {
+    saveNow();
+    const module = project.modules.find(m => m.id === moduleId) || project.modules[0];
+    const lesson = { id: makeId(), title: "Новый урок", html: "<p>Начните писать конспект...</p>" };
+    project.lessons.push(lesson);
+    module.lessonIds.push(lesson.id); module.expanded = true;
+    project.activeId = lesson.id;
+    setMode("visual"); mountLesson(); saveNow();
+    lessonTitle.focus(); lessonTitle.select();
   }
 
   // Display-only highlighting. Source and saved HTML always contain plain code text.
