@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="dark">
   <title>Редактор курсов — прототип</title>
   <link rel="stylesheet" href="styles.css?v=20261022-godot-light-tokens-v5">
   <script src="app.js?v=20261022-godot-light-tokens-v5" defer></script>
-  <link rel="stylesheet" href="step-inline.css?v=1">
-  <script src="step-inline.js?v=1" defer></script>
+  <link rel="stylesheet" href="step-inline.css?v=2">\n  <link rel="stylesheet" href="forge-theme.css?v=1">
+  <script src="step-inline.js?v=2" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
@@ -40,7 +40,7 @@
     <header class="topbar">
       <div class="brand" aria-label="Редактор курсов">
         <span class="brand-mark" aria-hidden="true"><svg class="brand-icon" viewBox="0 0 24 24"><use href="#ic-book"></use></svg></span>
-        <div><strong>Курсограф</strong><span class="brand-sub">редактор курсов</span></div>
+        <div><strong>Курсограф</strong><span class="brand-sub">Инди-кузница · редактор курсов</span></div>
       </div>
       <span class="top-divider" aria-hidden="true"></span>
       <span class="project-name">Мой учебный проект <span class="project-badge">Прототип</span></span>
@@ -59,7 +59,7 @@
           <h2>Мой учебный курс</h2>
           <p>Создавай и редактируй уроки, а затем выгружай готовую HTML-разметку.</p>
         </div>
-        <div class="section-heading"><span>УРОКИ</span><button id="addLesson" class="icon-add" type="button" title="Добавить урок" aria-label="Добавить урок">+</button></div>
+        <div class="section-heading"><span>МОДУЛИ И УРОКИ</span><button id="addModule" class="icon-add" type="button" title="Добавить модуль" aria-label="Добавить модуль">＋</button><button id="addLesson" class="icon-add" type="button" title="Добавить урок" aria-label="Добавить урок">+</button></div>
         <nav class="lesson-list" id="lessonList" aria-label="Список уроков"></nav>
         <div class="sidebar-bottom">
           <label class="toggle-line"><input type="checkbox" id="markdownToggle" checked><span>Markdown при вставке</span></label>
@@ -78,7 +78,7 @@
               <h1>Редактор уроков <span class="header-sparkle" aria-hidden="true">✳</span></h1>
               <p>Вставляй текст из ChatGPT, сохраняй разметку и оформляй материал для публикации.</p>
             </div>
-            <div class="step-pill"><span class="step-pill-dot"></span> Текстовый урок</div>
+            <div class="step-pill"><span class="step-pill-dot"></span> Модули · уроки · шаги</div>
           </div>
 
           <section class="editor-card" aria-label="Редактор">
