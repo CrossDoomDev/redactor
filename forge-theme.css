@@ -1,0 +1,48 @@
+/* IndieForge visual language; overrides legacy Kursograf colors without changing its rich-text internals. */
+:root{color-scheme:dark;--border:#273341;--ink:#f3f4fa;--muted:#abb9d0;--violet:#ff692a;--shadow:0 8px 28px #0003;background:#0b1219;color:#f3f4fa;font-family:Roboto,"Segoe UI",Arial,sans-serif}
+body,.app,.workspace,.main{background:#0b1219;color:#f3f4fa}
+.topbar{background:linear-gradient(110deg,#101720,#0b121a)!important;border-color:#273341!important;color:#f3f4fa}
+.brand,.brand strong,.brand-sub,.project-name,.page-header h1,.breadcrumb,.eyebrow,.lesson-details label,.section-heading,.sidebar h2{color:#f3f4fa!important}
+.brand-mark,.step-pill-dot,.save-dot{background:#ff692a!important;color:#fff!important}
+.sidebar{background:#111a23!important;border-color:#263341!important;color:#e8edf5}
+.sidebar-top,.sidebar-bottom,.course-cover{background:#121d27!important;color:#e8edf5}
+.sidebar p,.sidebar-bottom p,.page-header p,.bottom-notice,.word-count,.editor-hint,.lesson-item-name{color:#abb9d0}
+.section-heading{display:flex;align-items:center;gap:5px}
+.section-heading span{flex:1}
+.section-heading .icon-add{background:#243140;color:#ffb48b;border:1px solid #364554;border-radius:7px;width:27px;height:27px}
+.lesson-list{display:block;padding:4px 0}
+.course-module{margin:8px 0 14px;border:1px solid #2a3745;border-radius:10px;background:#141f2a;overflow:hidden}
+.course-module-heading{display:flex;align-items:center;gap:4px;padding:7px 7px 5px}
+.module-toggle{flex:1;min-width:0;background:transparent;border:0;text-align:left;color:#f3f4fa;font-weight:700;padding:8px 4px;cursor:pointer;white-space:normal}
+.module-menu,.lesson-more{border:0;background:transparent;color:#aab8ca;padding:7px;cursor:pointer;font-size:20px}
+.module-lesson-row{display:flex;align-items:center;padding:0 5px}
+.module-lesson-row .lesson-item{flex:1;min-width:0;margin:2px 0;background:transparent;color:#d6e0ec;border:1px solid transparent;border-radius:7px;text-align:left}
+.module-lesson-row .lesson-item.active{background:#38271f!important;border-color:#a94d29!important;color:#fff!important}
+.module-lesson-row .lesson-item.active .lesson-item-name{color:#fff}
+.lesson-icon{color:#ff9b69!important}
+.module-add-lesson{display:block;width:calc(100% - 20px);margin:5px 10px 10px;padding:9px;border:1px dashed #455469;background:transparent;color:#ffad7c;border-radius:7px;text-align:left;cursor:pointer}
+.editor-card,.lesson-details,.editor-container,.mode-row,.editor-panel,.rich-editor,.formatbar,.bottom-bar,.page-header,.step-quiz-panel{background:#121a22!important;color:#f3f4fa!important;border-color:#283646!important}
+.editor-card{border:1px solid #283646!important;border-radius:12px}
+.lesson-details input,.step-field input,.step-field textarea,.step-settings input,.step-student input,.step-student select,#sourceEditor,#codeTextarea{background:#0d1620!important;color:#f3f4fa!important;border-color:#405065!important}
+.lesson-details input::placeholder,.step-field input::placeholder{color:#8495a9}
+.button-primary,#addStepInline{background:#ff692a!important;border-color:#ff692a!important;color:#fff!important}
+.button-secondary,.button-ghost,.tool-button,.mode-tab,#blockType,.step-editor-head button,.step-line button,.step-settings button{background:#23303e!important;color:#e6edf6!important;border-color:#3b4b5d!important}
+.mode-tab.active{background:#3b291f!important;color:#ffac7c!important;border-color:#ff692a!important}
+.tool-button:hover,.mode-tab:hover,.button-secondary:hover{background:#344355!important}
+.formatbar{border-color:#283646!important}
+.step-pill,.project-badge,.html-badge{background:#352820!important;color:#ffb48a!important;border-color:#68402b!important}
+.lesson-stepbar{position:sticky!important;top:0;z-index:45;background:#151f2a!important;border-color:#324253!important;box-shadow:0 8px 24px #0004}
+.step-tab{background:#23303d!important;color:#cbd6e5!important;border-color:#394a5d!important}
+.step-tab.active{background:#493023!important;color:#ffb58d!important;border-color:#ff692a!important}
+.step-quiz-panel,.step-student{background:#151f2a!important;border-color:#344456!important;color:#f3f4fa!important}
+.step-student h3,.step-settings h3,.step-editor-head strong,.step-field{color:#f3f4fa!important}
+.step-student label,.step-settings label{color:#d2deec!important}
+.step-grid th,.step-grid td{border-color:#3b4b5d!important}
+.step-type-choices button{background:#243240!important;color:#f3f4fa!important;border-color:#415167!important}
+dialog,.link-dialog,.code-dialog{background:#16212c!important;color:#f3f4fa!important;border-color:#46596d!important}
+dialog label,dialog h2,dialog p{color:#e9edf5!important}
+dialog input,dialog textarea,dialog select{background:#0c1722!important;color:#fff!important;border-color:#43576d!important}
+.source-help,.bottom-notice,.code-modal-note{color:#aabbd0!important}
+.save-state,.brand-sub{color:#b7c5d7!important}
+a{color:#ffad7c}
+@media(max-width:760px){.lesson-stepbar{top:0}.course-module{margin:7px 0}.step-quiz-panel{padding:12px}}
