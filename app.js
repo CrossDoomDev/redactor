@@ -1968,17 +1968,13 @@
       setMode(tab.dataset.mode);
     });
   });
-  $("addLesson").addEventListener("click", () => {
-    saveNow();
-    const lesson = { id: makeId(), title: "Новый урок", html: "<h2>Название раздела</h2><p>Начните писать или вставьте текст из ChatGPT.</p>" };
-    project.lessons.push(lesson);
-    project.activeId = lesson.id;
-    setMode("visual");
-    mountLesson();
-    saveNow();
-    lessonTitle.focus();
-    lessonTitle.select();
+  $("addModule").addEventListener("click", () => {
+    const title = prompt("Название нового модуля", "Новый модуль");
+    if (!title?.trim()) return;
+    project.modules.push({ id: makeId(), title: title.trim().slice(0,160), lessonIds: [], expanded: true });
+    renderLessons(); persistStructure();
   });
+  $("addLesson").addEventListener("click", () => createLesson(moduleForLesson(project.activeId).id));
   $("markdownToggle").addEventListener("change", saveNow);
   $("menuToggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
   $("copyRich").addEventListener("click", copyRich);
