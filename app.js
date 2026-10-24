@@ -396,7 +396,8 @@
       return {
         id: id,
         title: String(lesson.title || "Без названия").slice(0, 160),
-        html: sanitizeHtml(String(lesson.html || "").slice(0, MAX_IMPORT_BYTES))
+        html: sanitizeHtml(String(lesson.html || "").slice(0, MAX_IMPORT_BYTES)),
+        steps: Array.isArray(lesson.steps) ? lesson.steps.slice(0, 150) : undefined
       };
     });
     const active = lessons.some((lesson) => lesson.id === input.activeId) ? input.activeId : lessons[0].id;
@@ -713,6 +714,7 @@
     updateCount();
     renderLessons();
     setToolbarState();
+    window.dispatchEvent(new Event("kursograf:lesson-mounted"));
   }
   function switchLesson(id) {
     if (project.activeId === id) return;
@@ -1910,6 +1912,7 @@
   });
   window.addEventListener("beforeunload", () => { if (saveTimer) saveNow(); });
   $("markdownToggle").checked = project.markdown;
+  window.kursografBridge = { selectedLesson, saveNow, mountLesson, setMode, persist: () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(project)); updateSaveState("Сохранено локально", ""); } catch (_) { toast("Не удалось сохранить шаги."); } } };
   mountLesson();
   setMode("visual");
 })();
