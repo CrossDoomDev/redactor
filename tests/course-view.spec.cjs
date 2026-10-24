@@ -8,7 +8,7 @@ const fixture = () => ({title:'Тестовый курс', activeId:'a', modules
 ], lessons:[
   {id:'a', title:'Первый урок', activeStepId:'note', steps:[
     {id:'note', type:'note', html:'<h2>Начало</h2><p>Материал курса</p><pre data-language="gdscript"><code>func ready():\n    pass</code></pre>'},
-    {id:'quiz', type:'single', question:'Выберите ответ', explanation:'Верный ответ — первый.', options:[{text:'Да',correct:true},{text:'Нет',correct:false}]}
+    {id:'quiz', type:'single', question:'Выберите ответ', correctExplanation:'', options:[{text:'Да',correct:true},{text:'Нет',correct:false}]}
   ]},
   {id:'b', title:'Второй урок', steps:[{id:'b-note', type:'note', html:'<p>Второй материал</p>'}]},
   {id:'c', title:'Третий урок', steps:[{id:'c-note', type:'note', html:'<p>Третий материал</p>'}]}
@@ -16,6 +16,15 @@ const fixture = () => ({title:'Тестовый курс', activeId:'a', modules
 const definitions = project => ({title:project.title,
   modules:project.modules.map(({id,title,lessonIds})=>({id,title,lessonIds})),
   lessons:project.lessons.map(({id,title,steps})=>({id,title,steps}))});
+
+async function readNote(page) {
+  await expect(page.frameLocator('#previewFrame').locator('body')).toBeVisible();
+  await page.locator('#previewFrame').evaluate(el=>el.scrollIntoView({block:'end'}));
+  const rect = await page.locator('#previewFrame').boundingBox();
+  await page.mouse.move(rect.x+20, Math.min(page.viewportSize().height-30, rect.y+rect.height-20));
+  await page.mouse.wheel(0, 120);
+  await expect(page.locator('#stepTabs .active')).toHaveClass(/completed/);
+}
 
 test.beforeEach(async ({page}) => {
   await page.addInitScript(({key,value})=>{
@@ -38,7 +47,7 @@ test('global learner view hides every editing surface and restores the exact HTM
   await expect(page.locator('#studentCourseTitle')).toHaveText('Тестовый курс');
   await expect(page.frameLocator('#previewFrame').locator('h2')).toHaveText('Последние правки');
   await expect(page.frameLocator('#previewFrame').locator('body')).toContainText('с переносом');
-  await expect(page.locator('#completeNote')).toBeVisible();
+  await expect(page.locator('#completeNote')).toHaveCount(0);
   await page.locator('#authorView').click();
   await expect(page.locator('#tabSource')).toHaveAttribute('aria-selected','true');
   await expect(page.locator('#sourceEditor')).toHaveValue(raw);
@@ -52,7 +61,7 @@ test('learner completes notes and quizzes and moves through every lesson and mod
   await page.locator('#exportJson').click();
   const before=definitions(await stored(page));
   await page.locator('#learnerView').click();
-  await page.locator('#completeNote').click();
+  await readNote(page);
   await expect(page.locator('#courseProgressLabel')).toHaveText('Пройдено 1 из 4 шагов');
   await page.locator('#nextStep').click();
   await expect(page.locator('.step-settings')).toHaveCount(0);
@@ -67,17 +76,17 @@ test('learner completes notes and quizzes and moves through every lesson and mod
   await expect(page.locator('#nextStep')).toHaveText('Следующий урок →');
   await page.locator('#nextStep').click();
   await expect(page.locator('#lessonHeading')).toHaveText('Второй урок');
-  await page.locator('#completeNote').click();
+  await readNote(page);
   await page.locator('#nextStep').click();
   await expect(page.locator('#moduleCrumb')).toHaveText('Практика');
   await expect(page.frameLocator('#previewFrame').locator('body')).toHaveText('Третий материал');
-  await page.locator('#completeNote').click();
+  await readNote(page);
   await expect(page.locator('#courseProgressLabel')).toHaveText('Пройдено 4 из 4 шагов');
   await expect(page.locator('#passageStatus')).toHaveText('Все шаги курса пройдены.');
   await expect(page.locator('#nextStep')).toBeDisabled();
   await page.locator('#previousStep').click();
   await expect(page.locator('#lessonHeading')).toHaveText('Второй урок');
-  await expect(page.locator('#completeNote')).toBeDisabled();
+  await expect(page.locator('#passageStatus')).toHaveText('Все шаги курса пройдены.');
   expect(definitions(await stored(page))).toEqual(before);
 });
 
@@ -135,4 +144,47 @@ test('both views fit small screens and the mobile outline remains navigable', as
   await expect(page.frameLocator('#previewFrame').locator('body')).toHaveText('Третий материал');
   await expect(page.locator('#learnerView')).toHaveAttribute('aria-pressed','true');
   expect(errors).toEqual([]);
+});
+
+test('outcome-specific feedback replaces defaults, survives reload, and keeps the step icon', async ({page}) => {
+  await page.locator('[data-step-id="quiz"]').click();
+  await page.locator('[data-field="correctExplanation"]').fill('Авторский успех');
+  await page.locator('[data-field="incorrectExplanation"]').fill('Авторская подсказка');
+  await page.reload();
+  await expect(page.locator('[data-field="incorrectExplanation"]')).toHaveValue('Авторская подсказка');
+  await page.locator('#learnerView').click();
+  await page.locator('[data-choice="1"]').check();
+  await page.locator('[data-check]').click();
+  await expect(page.locator('#stepResult')).toHaveText('Авторская подсказка');
+  await page.locator('[data-choice="0"]').check();
+  await page.locator('[data-check]').click();
+  await expect(page.locator('#stepResult')).toHaveText('Авторский успех');
+  await expect(page.locator('[data-step-id="quiz"]')).toHaveClass(/completed/);
+  await expect(page.locator('[data-step-id="quiz"] .step-symbol')).toHaveText('◉');
+  await page.locator('#authorView').click();
+  await page.locator('[data-field="correctExplanation"]').fill('   ');
+  await page.locator('[data-field="incorrectExplanation"]').fill('');
+  await page.locator('#learnerView').click();
+  await page.locator('[data-choice="1"]').check();
+  await page.locator('[data-check]').click();
+  await expect(page.locator('#stepResult')).toHaveText('Ответ неверный. Попробуйте ещё раз.');
+  await page.locator('[data-choice="0"]').check();
+  await page.locator('[data-check]').click();
+  await expect(page.locator('#stepResult')).toHaveText('✓ Правильно!');
+});
+
+test('long notes complete only after a reading gesture reaches the end, preserving their icon', async ({page}) => {
+  await page.locator('#tabSource').click();
+  await page.locator('#sourceEditor').fill(Array.from({length:70},(_,i)=>`<p>Абзац ${i}</p>`).join(''));
+  await page.locator('#learnerView').click();
+  await expect.poll(()=>page.locator('#previewFrame').evaluate(el=>el.clientHeight)).toBeGreaterThan(2000);
+  await expect(page.locator('[data-step-id="note"]')).not.toHaveClass(/completed/);
+  await page.mouse.move(700,500);
+  await page.mouse.wheel(0,150);
+  await expect(page.locator('[data-step-id="note"]')).not.toHaveClass(/completed/);
+  await page.locator('#previewFrame').evaluate(el=>el.scrollIntoView({block:'end'}));
+  await expect(page.locator('[data-step-id="note"]')).toHaveClass(/completed/);
+  await expect(page.locator('[data-step-id="note"] .step-symbol')).toHaveText('≡');
+  await page.locator('[data-lesson-id="b"] .lesson-item').click();
+  await expect(page.locator('[data-step-id="b-note"]')).not.toHaveClass(/completed/);
 });

@@ -54,7 +54,7 @@
     const active = index(), step = selected();
     $("stepTabs").innerHTML = lesson().steps.map((s, i) => {
       const done = !b.isAuthor() && b.stepCompleted(lesson(), s);
-      return `<button type="button" id="step-tab-${i}" class="step-tab ${i === active ? "active" : ""} ${done ? "completed" : ""}" data-step="${i}" data-step-id="${esc(s.id)}" role="tab" aria-selected="${i === active}" aria-controls="stepContent" tabindex="${i === active ? "0" : "-1"}" aria-label="Шаг ${i + 1}: ${esc(types[s.type].name)}${done ? ". Пройден" : ""}" title="${types[s.type].name}${b.isAuthor() ? ". Перетащите, чтобы изменить порядок." : ""}"><span class="step-number">${i + 1}</span><span class="step-symbol" aria-hidden="true">${done ? "✓" : types[s.type].icon}</span></button>`;
+      return `<button type="button" id="step-tab-${i}" class="step-tab ${i === active ? "active" : ""} ${done ? "completed" : ""}" data-step="${i}" data-step-id="${esc(s.id)}" role="tab" aria-selected="${i === active}" aria-controls="stepContent" tabindex="${i === active ? "0" : "-1"}" aria-label="Шаг ${i + 1}: ${esc(types[s.type].name)}${done ? ". Пройден" : ""}" title="${types[s.type].name}${b.isAuthor() ? ". Перетащите, чтобы изменить порядок." : ""}"><span class="step-number">${i + 1}</span><span class="step-symbol" aria-hidden="true">${types[s.type].icon}</span></button>`;
     }).join("");
     $("stepContent").setAttribute("aria-labelledby", "step-tab-" + active);
     $("stepMenu").open = false;
@@ -82,7 +82,7 @@
     $("stepQuizPanel").hidden = step.type === "note";
     if (step.type === "note") return;
     $("stepQuizPanel").innerHTML = b.isAuthor()
-      ? `<section class="step-settings" aria-label="Настройки задания"><div class="panel-heading"><h2>Содержание задания</h2><span>Режим разработчика</span></div><p id="assignmentWarning" class="configuration-warning" role="status" hidden></p>${field("Условие задания", "question", step.question, true)}${settings(step)}<div class="assignment-scoring">${field("Баллы за правильный ответ", "points", step.points, false, true)}</div>${field("Пояснение после проверки", "explanation", step.explanation, true)}</section>`
+      ? `<section class="step-settings" aria-label="Настройки задания"><div class="panel-heading"><h2>Содержание задания</h2><span>Режим разработчика</span></div><p id="assignmentWarning" class="configuration-warning" role="status" hidden></p>${field("Условие задания", "question", step.question, true)}${settings(step)}<div class="assignment-scoring">${field("Баллы за правильный ответ", "points", step.points, false, true)}</div>${field("Пояснение для правильного ответа", "correctExplanation", step.correctExplanation, true)}${field("Пояснение для неправильного ответа", "incorrectExplanation", step.incorrectExplanation, true)}</section>`
       : '<section class="step-student" aria-label="Задание"><div id="stepStudent"></div></section>';
     if (b.isAuthor()) authorWarning(); else student();
   }
@@ -155,7 +155,8 @@
     }
     const result = $("stepResult");
     result.className = ok ? "result-correct" : "result-incorrect";
-    result.textContent = (ok ? "✓ Правильно!" : "Ответ неверный. Попробуйте ещё раз.") + (step.explanation ? " " + step.explanation : "");
+    const explanation = ok ? step.correctExplanation : step.incorrectExplanation;
+    result.textContent = explanation?.trim() ? explanation : (ok ? "✓ Правильно!" : "Ответ неверный. Попробуйте ещё раз.");
     b.attemptFor().result = {ok, text: result.textContent};
     if (ok) b.completeStep();
   }

@@ -29,7 +29,7 @@ window.CourseModel = (() => {
   const list = (value, fallback) => (Array.isArray(value) && value.length ? value : fallback).slice(0, 100);
   function createStep(type = "note") {
     if (!Object.hasOwn(types, type)) type = "note";
-    return {id: id(), type, title: types[type].name, question: "", explanation: "", points: type === "note" ? 0 : 1, ...structuredClone(defaults[type])};
+    return {id: id(), type, title: types[type].name, question: "", explanation: "", correctExplanation: "", incorrectExplanation: "", points: type === "note" ? 0 : 1, ...structuredClone(defaults[type])};
   }
   function normalizeStep(raw, sanitize) {
     raw = raw && typeof raw === "object" ? raw : {};
@@ -37,7 +37,10 @@ window.CourseModel = (() => {
     step.id = text(raw.id || step.id, "", 90);
     step.title = text(raw.title, step.title, 160);
     step.question = text(raw.question);
+    // Preserve legacy shared feedback on success; new feedback is outcome-specific.
     step.explanation = text(raw.explanation);
+    step.correctExplanation = text(raw.correctExplanation ?? raw.explanation);
+    step.incorrectExplanation = text(raw.incorrectExplanation);
     step.points = Math.max(0, Math.min(100, finite(raw.points, step.points)));
     if (step.type === "note") step.html = sanitize(text(raw.html, "", 3 * 1024 * 1024));
     if (["single", "multi"].includes(step.type)) {

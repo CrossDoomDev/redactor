@@ -89,15 +89,14 @@ test('single answer preview is interactive and author changes persist with all c
   await page.locator('[data-field="question"]').fill('Какой язык используется в Godot?');
   await page.locator('[data-option="0"]').fill('GDScript');
   await page.locator('[data-option="1"]').fill('HTML');
-  await page.locator('[data-field="explanation"]').fill('В Godot используется GDScript.');
+  await page.locator('[data-field="correctExplanation"]').fill('В Godot используется GDScript.');
   await page.locator('#learnerView').click();
   await page.locator('[data-choice="1"]').check();
   await page.locator('[data-check]').click();
   await expect(page.locator('#stepResult')).toContainText('Ответ неверный');
   await page.locator('[data-choice="0"]').check();
   await page.locator('[data-check]').click();
-  await expect(page.locator('#stepResult')).toContainText('✓ Правильно!');
-  await expect(page.locator('#stepResult')).toContainText('GDScript');
+  await expect(page.locator('#stepResult')).toHaveText('В Godot используется GDScript.');
   await page.locator('#authorView').click();
   await page.locator('[data-step="0"]').click();
   await expect(page.locator('#editor')).toContainText('Добро пожаловать');

@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>IndieForge — редактор курсов</title>
-  <link rel="stylesheet" href="styles.css?v=20261024-course-views">
-  <script src="reorder.js?v=20261024-course-views" defer></script>
-  <script src="course-model.js" defer></script>
-  <script src="app.js?v=20261024-course-views" defer></script>
-  <link rel="stylesheet" href="step-inline.css?v=20261024-course-views">
-  <link rel="stylesheet" href="forge-theme.css?v=20261024-course-views">
-  <script src="step-inline.js?v=20261024-course-views" defer></script>
+  <link rel="stylesheet" href="styles.css?v=20261024-step-feedback">
+  <script src="reorder.js?v=20261024-step-feedback" defer></script>
+  <script src="course-model.js?v=20261024-step-feedback" defer></script>
+  <script src="app.js?v=20261024-step-feedback" defer></script>
+  <link rel="stylesheet" href="step-inline.css?v=20261024-step-feedback">
+  <link rel="stylesheet" href="forge-theme.css?v=20261024-step-feedback">
+  <script src="step-inline.js?v=20261024-step-feedback" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
@@ -197,7 +197,7 @@
           </div></div>
           </section>
 
-          <div class="passage-actions" data-learner-only hidden><button id="completeNote" type="button" class="button button-primary">Отметить шаг пройденным</button><span id="passageStatus" role="status" aria-live="polite"></span></div>
+          <div class="passage-actions" data-learner-only hidden><span id="passageStatus" role="status" aria-live="polite"></span></div>
           <div class="step-navigation"><button id="previousStep" class="button button-secondary">← Предыдущий шаг</button><span id="stepNavigationLabel"></span><button id="nextStep" class="button button-secondary">Следующий шаг →</button></div>
           <div class="bottom-bar" data-author-only>
             <div class="bottom-notice"><span class="notice-icon">◎</span><span>Проект сохраняется в этом браузере. Для резервной копии выгрузи JSON.</span></div>

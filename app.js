@@ -494,9 +494,6 @@
     $("learnerProgress").value = done;
     $("courseProgressLabel").textContent = "Пройдено " + done + " из " + entries.length + " шагов";
     const completed = stepCompleted(selectedLesson(), selectedStep());
-    $("completeNote").hidden = selectedStep().type !== "note";
-    $("completeNote").disabled = completed;
-    $("completeNote").textContent = completed ? "✓ Шаг пройден" : "Отметить шаг пройденным";
     $("passageStatus").textContent = done === entries.length ? "Все шаги курса пройдены." : completed ? "Шаг пройден. Можно продолжать." : "";
   }
   function completeStep() {
@@ -1123,6 +1120,32 @@
     }).join("") + "}";
   }
   let previewObserver = null;
+  let readingIntent = false;
+  let readingReady = false;
+  let readingKey = "";
+  function checkNoteRead() {
+    if (isAuthor() || mode !== "preview" || selectedStep().type !== "note" || !readingReady || !readingIntent) return;
+    if (readingKey !== JSON.stringify([selectedLesson().id, selectedStep().id]) || stepCompleted(selectedLesson(), selectedStep())) return;
+    const doc = previewFrame.contentDocument;
+    if (!doc?.body || [...doc.images].some(img => !img.complete)) return;
+    const rect = previewFrame.getBoundingClientRect();
+    if (rect.top < innerHeight && rect.bottom <= innerHeight + 8 && rect.bottom > 0) completeStep();
+  }
+  function readingGesture(event) {
+    if (event.target instanceof Element && event.target.closest(".sidebar,.topbar,button,input,textarea,select")) return;
+    if (event.type === "wheel" && event.deltaY <= 0) return;
+    if (event.type === "keydown" && (!["End", "PageDown", "ArrowDown", " "].includes(event.key) || event.ctrlKey || event.metaKey || event.altKey)) return;
+    if (isAuthor() || selectedStep().type !== "note") return;
+    readingIntent = true;
+    requestAnimationFrame(checkNoteRead);
+  }
+  window.addEventListener("wheel", readingGesture, {passive:true});
+  window.addEventListener("touchmove", readingGesture, {passive:true});
+  window.addEventListener("keydown", readingGesture);
+  window.addEventListener("pointerdown", event => {
+    if (event.clientX >= document.documentElement.clientWidth - 16) readingGesture(event);
+  });
+  window.addEventListener("scroll", checkNoteRead, {passive:true});
   function sizePreviewFrame() {
     if (mode !== "preview") return;
     const doc = previewFrame.contentDocument;
@@ -1137,6 +1160,10 @@
     previewObserver?.disconnect();
     const doc = previewFrame.contentDocument;
     if (!doc?.body) return;
+    readingReady = true;
+    doc.addEventListener("wheel", readingGesture, {passive:true});
+    doc.addEventListener("touchmove", readingGesture, {passive:true});
+    doc.addEventListener("keydown", readingGesture);
     sizePreviewFrame();
     previewObserver = new ResizeObserver(sizePreviewFrame);
     previewObserver.observe(doc.body);
@@ -1153,6 +1180,8 @@
     return '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + escapeHtml(title) + '</title>\n<style>' + previewCodeThemeCss() + previewCss + '</style>\n</head>\n<body>\n' + rendered.innerHTML + '\n</body>\n</html>';
   }
   function updatePreview() {
+    readingIntent = false; readingReady = false;
+    readingKey = JSON.stringify([selectedLesson().id, selectedStep().id]);
     previewObserver?.disconnect();
     previewObserver = null;
     previewFrame.style.height = "410px";
@@ -2226,7 +2255,6 @@
   $("courseTitle").addEventListener("blur", updateCourseContext);
   $("markdownToggle").addEventListener("change", saveNow);
   document.querySelectorAll("[data-course-view]").forEach(button => button.addEventListener("click", () => setCourseView(button.dataset.courseView)));
-  $("completeNote").addEventListener("click", () => { if (selectedStep().type === "note") completeStep(); });
   function toggleSidebar(open) {
     $("sidebar").classList.toggle("open", open);
     $("sidebarBackdrop").hidden = !open;
