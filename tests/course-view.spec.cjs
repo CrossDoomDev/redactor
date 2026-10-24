@@ -18,11 +18,12 @@ const definitions = project => ({title:project.title,
   lessons:project.lessons.map(({id,title,steps})=>({id,title,steps}))});
 
 async function readNote(page) {
-  await expect(page.frameLocator('#previewFrame').locator('body')).toBeVisible();
+  await expect.poll(()=>page.locator('#previewFrame').evaluate(el=>el.contentDocument?.readyState === 'complete' && !!el.contentDocument?.body?.textContent.trim())).toBe(true);
   await page.locator('#previewFrame').evaluate(el=>el.scrollIntoView({block:'end'}));
   const rect = await page.locator('#previewFrame').boundingBox();
   await page.mouse.move(rect.x+20, Math.min(page.viewportSize().height-30, rect.y+rect.height-20));
-  await page.mouse.wheel(0, 120);
+  await page.evaluate(()=>document.activeElement?.blur());
+  await page.keyboard.press('End');
   await expect(page.locator('#stepTabs .active')).toHaveClass(/completed/);
 }
 
@@ -78,7 +79,7 @@ test('learner completes notes and quizzes and moves through every lesson and mod
   await expect(page.locator('#lessonHeading')).toHaveText('Второй урок');
   await readNote(page);
   await page.locator('#nextStep').click();
-  await expect(page.locator('#moduleCrumb')).toHaveText('Практика');
+  await expect(page.locator('#lessonHeading')).toHaveText('Третий урок');
   await expect(page.frameLocator('#previewFrame').locator('body')).toHaveText('Третий материал');
   await readNote(page);
   await expect(page.locator('#courseProgressLabel')).toHaveText('Пройдено 4 из 4 шагов');

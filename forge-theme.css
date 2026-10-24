@@ -181,3 +181,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .step-navigation>span { grid-column:1 / -1; grid-row:1; text-align:center; }
   .step-navigation .button { white-space:normal; line-height:1.4; }
 }
+
+.mobile-outline-toggle { display:none; }
+@media (max-width:800px) { .mobile-outline-toggle { display:block; padding:16px 14px 0; } }

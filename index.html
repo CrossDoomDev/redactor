@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>IndieForge — редактор курсов</title>
-  <link rel="stylesheet" href="styles.css?v=20261024-step-feedback">
-  <script src="reorder.js?v=20261024-step-feedback" defer></script>
-  <script src="course-model.js?v=20261024-step-feedback" defer></script>
-  <script src="app.js?v=20261024-step-feedback" defer></script>
-  <link rel="stylesheet" href="step-inline.css?v=20261024-step-feedback">
-  <link rel="stylesheet" href="forge-theme.css?v=20261024-step-feedback">
-  <script src="step-inline.js?v=20261024-step-feedback" defer></script>
+  <link rel="stylesheet" href="styles.css?v=20261024-clean-header">
+  <script src="reorder.js?v=20261024-clean-header" defer></script>
+  <script src="course-model.js?v=20261024-clean-header" defer></script>
+  <script src="app.js?v=20261024-clean-header" defer></script>
+  <link rel="stylesheet" href="step-inline.css?v=20261024-clean-header">
+  <link rel="stylesheet" href="forge-theme.css?v=20261024-clean-header">
+  <script src="step-inline.js?v=20261024-clean-header" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
@@ -82,11 +82,10 @@
 
       <button id="sidebarBackdrop" class="sidebar-backdrop" aria-label="Закрыть содержание курса" hidden></button>
       <main class="main">
-        <div class="breadcrumb"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Показать содержание курса" aria-expanded="false" aria-controls="sidebar">☰</button><span id="courseCrumb"></span><span class="crumb-separator">/</span><span id="moduleCrumb"></span><span class="crumb-separator">/</span><span id="lessonCrumb"></span></div>
+        <div class="mobile-outline-toggle"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Показать содержание курса" aria-expanded="false" aria-controls="sidebar">☰</button></div>
         <div class="editor-container">
           <div class="page-header">
-            <div><div class="eyebrow eyebrow-accent" id="lessonPosition">РЕДАКТИРОВАНИЕ УРОКА</div><h1 id="lessonHeading">Редактор урока</h1><p id="lessonIntro">Соберите урок из конспектов и заданий. Изменения сохраняются автоматически.</p></div>
-            <span class="step-pill" id="lessonStepCount"></span>
+            <div><div class="eyebrow eyebrow-accent" id="lessonPosition">РЕДАКТИРОВАНИЕ УРОКА</div><h1 id="lessonHeading">Редактор урока</h1></div>
           </div>
           <section class="editor-card" aria-label="Редактор">
             <div class="lesson-stepbar" id="lessonStepbar" aria-label="Шаги урока">

@@ -29,7 +29,7 @@ test.beforeEach(async ({page}) => { await page.goto('/'); });
 
 test('course outline, names, module CRUD, lesson move, duplication and deletion survive reload', async ({page}) => {
   await page.locator('#courseTitle').fill('Моя инди-игра');
-  await expect(page.locator('#courseCrumb')).toHaveText('Моя инди-игра');
+  await expect(page.locator('#projectName')).toHaveText('Моя инди-игра');
   await page.locator('#addModule').click();
   await page.locator('#structureTitle').fill('Продвинутый Godot');
   await page.locator('#structureForm button[type="submit"]').click();

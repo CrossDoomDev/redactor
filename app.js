@@ -527,7 +527,6 @@
     sourceEditor.disabled = $("courseTitle").disabled = !isAuthor();
     $("workspaceLabel").textContent = isAuthor() ? "Редактор курсов" : "Прохождение курса";
     document.querySelector(".brand").setAttribute("aria-label", isAuthor() ? "Редактор курсов" : "Прохождение курса");
-    $("lessonIntro").textContent = isAuthor() ? "Соберите урок из конспектов и заданий. Изменения сохраняются автоматически." : "Изучайте материалы и выполняйте задания. Переходите между шагами и уроками курса.";
     document.querySelector(".editor-card").setAttribute("aria-label", isAuthor() ? "Редактор" : "Материалы урока");
     savedRange = null;
     mountLesson();
@@ -543,13 +542,9 @@
     if (document.activeElement !== $("courseTitle")) $("courseTitle").value = project.title;
     $("projectName").textContent = project.title;
     $("studentCourseTitle").textContent = project.title;
-    $("courseCrumb").textContent = project.title;
-    $("moduleCrumb").textContent = module.title;
-    $("lessonCrumb").textContent = lesson.title;
     $("lessonHeading").textContent = lesson.title;
     $("lessonPosition").textContent = "МОДУЛЬ " + mi + " · УРОК " + mi + "." + li;
     $("courseSummary").textContent = project.modules.length + " модулей · " + project.lessons.length + " уроков";
-    $("lessonStepCount").textContent = "Шагов в уроке: " + lesson.steps.length;
   }
   function renderLessons() {
     updateCourseContext();
