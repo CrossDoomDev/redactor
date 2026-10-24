@@ -64,6 +64,7 @@ test('learner completes notes and quizzes and moves through every lesson and mod
   await page.locator('#learnerView').click();
   await readNote(page);
   await expect(page.locator('#courseProgressLabel')).toHaveText('Пройдено 1 из 4 шагов');
+  await expect(page.locator('[data-lesson-id="a"] .lesson-count')).not.toHaveClass(/completed/);
   await page.locator('#nextStep').click();
   await expect(page.locator('.step-settings')).toHaveCount(0);
   await expect(page.locator('[data-correct],[data-option],[data-field]')).toHaveCount(0);
@@ -74,6 +75,8 @@ test('learner completes notes and quizzes and moves through every lesson and mod
   await page.locator('[data-choice="0"]').check();
   await page.locator('[data-check]').click();
   await expect(page.locator('#courseProgressLabel')).toHaveText('Пройдено 2 из 4 шагов');
+  await expect(page.locator('[data-lesson-id="a"] .lesson-count')).toHaveClass(/completed/);
+  await expect(page.locator('[data-lesson-id="a"] .lesson-count')).toHaveCSS('background-color','rgb(36, 85, 58)');
   await expect(page.locator('#nextStep')).toHaveText('Следующий урок →');
   await page.locator('#nextStep').click();
   await expect(page.locator('#lessonHeading')).toHaveText('Второй урок');
@@ -188,4 +191,24 @@ test('long notes complete only after a reading gesture reaches the end, preservi
   await expect(page.locator('[data-step-id="note"] .step-symbol')).toHaveText('≡');
   await page.locator('[data-lesson-id="b"] .lesson-item').click();
   await expect(page.locator('[data-step-id="b-note"]')).not.toHaveClass(/completed/);
+});
+
+
+test('view switch stays at the right edge when export controls appear', async ({page}) => {
+  for (const width of [1440,1024,768,360]) {
+    await page.setViewportSize({width,height:900});
+    await page.locator('#authorView').click();
+    const author = await page.locator('.course-view-switch').boundingBox();
+    if (width > 580) {
+      for (const id of ['exportJson','exportHtml']) {
+        const button = await page.locator('#'+id).boundingBox();
+        expect(button.x+button.width).toBeLessThanOrEqual(author.x);
+      }
+    }
+    await page.locator('#learnerView').click();
+    const learner = await page.locator('.course-view-switch').boundingBox();
+    expect(learner.x).toBeCloseTo(author.x,0);
+    expect(learner.y).toBeCloseTo(author.y,0);
+    expect(learner.width).toBeCloseTo(author.width,0);
+  }
 });

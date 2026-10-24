@@ -184,3 +184,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 
 .mobile-outline-toggle { display:none; }
 @media (max-width:800px) { .mobile-outline-toggle { display:block; padding:16px 14px 0; } }
+
+.learner-view .lesson-count.completed { color:#c2f2d3; border-color:#4d996c; background:#24553a; }
+@media (max-width:580px) {
+  .topbar { grid-template-rows:42px 34px; align-content:start; }
+  .learner-view .topbar { grid-template-rows:42px; }
+}

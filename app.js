@@ -581,6 +581,8 @@
           if (!isAuthor()) {
             const done = lesson.steps.filter(step => stepCompleted(lesson, step)).length;
             count.textContent = done + "/" + lesson.steps.length;
+            count.classList.toggle("completed", done === lesson.steps.length);
+            if (done === lesson.steps.length) count.setAttribute("aria-label", "Урок полностью пройден");
           }
           count.title = isAuthor() ? "Шагов: " + lesson.steps.length : "Пройдено шагов: " + count.textContent;
           button.append(icon, name, count); button.addEventListener("click", () => switchLesson(lesson.id));
