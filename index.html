@@ -7,6 +7,8 @@
   <title>Редактор курсов — прототип</title>
   <link rel="stylesheet" href="styles.css?v=20261022-godot-light-tokens-v5">
   <script src="app.js?v=20261022-godot-light-tokens-v5" defer></script>
+  <link rel="stylesheet" href="step-inline.css?v=1">
+  <script src="step-inline.js?v=1" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
@@ -42,7 +44,7 @@
       </div>
       <span class="top-divider" aria-hidden="true"></span>
       <span class="project-name">Мой учебный проект <span class="project-badge">Прототип</span></span>
-      <div class="top-actions"><a class="button button-secondary" href="steps.html" style="text-decoration:none">☷ Шаги урока</a>
+      <div class="top-actions">
         <span class="save-state" id="saveState" role="status" aria-live="polite"><span class="save-dot"></span> Сохранено локально</span>
         <button type="button" class="button button-ghost" id="exportJson" title="Сохранить резервную копию всех уроков"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> Проект JSON</button>
         <button type="button" class="button button-primary" id="exportHtml"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> Скачать HTML</button>
@@ -85,7 +87,7 @@
               <input type="text" maxlength="160" id="lessonTitle" placeholder="Введите название урока" autocomplete="off">
             </div>
 
-            <div class="mode-row">
+            <div class="lesson-stepbar" id="lessonStepbar" aria-label="Шаги урока"><div id="stepTabs" class="lesson-step-tabs"></div><button type="button" id="addStepInline" class="button button-primary">＋ Добавить шаг</button></div><div id="stepQuizPanel" class="step-quiz-panel" hidden></div><div id="noteEditorRegion"><div class="mode-row">
               <div class="mode-tabs" role="tablist" aria-label="Режим редактора">
                 <button type="button" id="tabVisual" class="mode-tab active" data-mode="visual" role="tab" aria-selected="true" aria-controls="visualPanel">✎ Редактор</button>
                 <button type="button" id="tabSource" class="mode-tab" data-mode="source" role="tab" aria-selected="false" aria-controls="sourcePanel">&lt;/&gt; HTML</button>
@@ -185,6 +187,7 @@
         </div>
       </main>
     </div>
+    <dialog id="stepTypeDialog" class="link-dialog"><h2>Добавить шаг</h2><p>Выберите тип шага</p><div id="stepTypeChoices" class="step-type-choices"></div><button type="button" class="button button-secondary" id="closeStepTypes">Отмена</button></dialog>
     <dialog id="linkDialog" class="link-dialog" aria-labelledby="linkDialogTitle">
       <form id="linkForm" class="link-form">
         <div class="link-dialog-header">
