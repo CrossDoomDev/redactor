@@ -776,6 +776,7 @@
     const lesson = selectedLesson();
     lesson.title = lessonTitle.value.trim() || "Без названия";
     lesson.html = currentHtml();
+    if (window.kursografBeforeSave) window.kursografBeforeSave();
     project.markdown = $("markdownToggle").checked;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
