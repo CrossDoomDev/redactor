@@ -1,7 +1,7 @@
 "use strict";
 // Pointer events keep the same drag interaction available to mouse, pen and touch.
 window.CourseReorder = {
-  bind({root, handle, source, locate, commit}) {
+  bind({root, handle, source, locate, commit, enabled = () => true}) {
     let drag = null, frame = 0, suppressClick = false;
     function clearMarker() {
       root.querySelectorAll(".drop-before,.drop-after,.drop-inside").forEach(el => {
@@ -30,6 +30,7 @@ window.CourseReorder = {
     }
     function paint() {
       if (!drag?.active) return;
+      if (!enabled()) { cleanup(); return; }
       drag.ghost.style.left = Math.max(8, Math.min(innerWidth - drag.ghost.offsetWidth - 8, drag.x + 14)) + "px";
       drag.ghost.style.top = Math.max(76, Math.min(innerHeight - 48, drag.y + 14)) + "px";
       for (let el = root; el && el !== document.body; el = el.parentElement) {
@@ -46,7 +47,7 @@ window.CourseReorder = {
       frame = requestAnimationFrame(paint);
     }
     root.addEventListener("pointerdown", event => {
-      if (event.button !== 0 || !event.isPrimary || drag) return;
+      if (!enabled() || event.button !== 0 || !event.isPrimary || drag) return;
       const grip = event.target.closest(handle);
       if (!grip || !root.contains(grip)) return;
       const data = source(grip);
@@ -79,7 +80,7 @@ window.CourseReorder = {
       const target = active && hit && root.contains(hit) ? locate(data, hit, event.clientX, event.clientY) : null;
       suppressClick = active;
       cleanup();
-      if (active && target) commit(data, target);
+      if (enabled() && active && target) commit(data, target);
       // The synthesized click follows pointerup, before this timer.
       setTimeout(() => { suppressClick = false; }, 0);
     });

@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>IndieForge — редактор курсов</title>
-  <link rel="stylesheet" href="styles.css?v=20261024-outline-left">
-  <script src="reorder.js" defer></script>
+  <link rel="stylesheet" href="styles.css?v=20261024-course-views">
+  <script src="reorder.js?v=20261024-course-views" defer></script>
   <script src="course-model.js" defer></script>
-  <script src="app.js?v=20261024-outline-left" defer></script>
-  <link rel="stylesheet" href="step-inline.css?v=20261024-outline-left">
-  <link rel="stylesheet" href="forge-theme.css?v=20261024-outline-left">
-  <script src="step-inline.js?v=20261024-outline-left" defer></script>
+  <script src="app.js?v=20261024-course-views" defer></script>
+  <link rel="stylesheet" href="step-inline.css?v=20261024-course-views">
+  <link rel="stylesheet" href="forge-theme.css?v=20261024-course-views">
+  <script src="step-inline.js?v=20261024-course-views" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
@@ -43,14 +43,18 @@
     <header class="topbar">
       <div class="brand" aria-label="Редактор курсов">
         <span class="brand-mark" aria-hidden="true"><svg class="brand-icon" viewBox="0 0 24 24"><use href="#ic-book"></use></svg></span>
-        <div><strong>IndieForge</strong><span class="brand-sub">Редактор курсов</span></div>
+        <div><strong>IndieForge</strong><span class="brand-sub" id="workspaceLabel">Редактор курсов</span></div>
       </div>
       <span class="top-divider" aria-hidden="true"></span>
-      <span class="project-name"><span id="projectName">Мой учебный курс</span> <span class="project-badge">Черновик</span></span>
+      <span class="project-name"><span id="projectName">Мой учебный курс</span> <span class="project-badge" data-author-only>Черновик</span></span>
       <div class="top-actions">
-        <span class="save-state" id="saveState" role="status" aria-live="polite"><span class="save-dot"></span> Сохранено локально</span>
-        <button type="button" class="button button-ghost" id="exportJson" title="Сохранить резервную копию всех уроков"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> Экспорт курса</button>
-        <button type="button" class="button button-primary" id="exportHtml"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> HTML шага</button>
+        <div class="course-view-switch" role="group" aria-label="Вид курса">
+          <button type="button" id="authorView" data-course-view="author" aria-pressed="true">Разработчик</button>
+          <button type="button" id="learnerView" data-course-view="learner" aria-pressed="false">Ученик</button>
+        </div>
+        <span class="save-state" id="saveState" role="status" aria-live="polite" data-author-only><span class="save-dot"></span> Сохранено локально</span>
+        <button type="button" class="button button-ghost" id="exportJson" title="Сохранить резервную копию всех уроков" data-author-only><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> Экспорт курса</button>
+        <button type="button" class="button button-primary" id="exportHtml" data-author-only><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> HTML шага</button>
       </div>
     </header>
 
@@ -58,15 +62,17 @@
       <aside class="sidebar" id="sidebar" aria-label="Навигация по курсу">
         <div class="sidebar-top">
           <div class="eyebrow">ВАШ КУРС</div>
-          <label class="visually-hidden" for="courseTitle">Название курса</label>
-          <textarea id="courseTitle" class="course-title" rows="2" maxlength="160" aria-label="Название курса" autocomplete="off" spellcheck="false"></textarea>
+          <label class="visually-hidden" for="courseTitle" data-author-only>Название курса</label>
+          <textarea id="courseTitle" class="course-title" rows="2" maxlength="160" aria-label="Название курса" autocomplete="off" spellcheck="false" data-author-only></textarea>
+          <h2 id="studentCourseTitle" class="course-title" data-learner-only hidden></h2>
           <p id="courseSummary"></p>
+          <div class="course-progress" data-learner-only hidden><label for="learnerProgress" id="courseProgressLabel"></label><progress id="learnerProgress" value="0" max="1"></progress></div>
         </div>
         <div class="section-heading"><span>СОДЕРЖАНИЕ КУРСА</span></div>
-        <p class="outline-help" id="outlineDragHelp">Потяните за ⠿, чтобы переместить модуль или урок.</p>
+        <p class="outline-help" id="outlineDragHelp" data-author-only>Потяните за ⠿, чтобы переместить модуль или урок.</p>
         <nav class="lesson-list" id="lessonList" aria-label="Список уроков"></nav>
-        <button id="addModule" class="course-add-module" type="button">＋ Добавить модуль</button>
-        <div class="sidebar-bottom">
+        <button id="addModule" class="course-add-module" type="button" data-author-only>＋ Добавить модуль</button>
+        <div class="sidebar-bottom" data-author-only>
           <label class="toggle-line"><input type="checkbox" id="markdownToggle" checked><span>Markdown при вставке</span></label>
           <p>Если ChatGPT скопировал Markdown вместо HTML, преобразуем его в оформление.</p>
           <button type="button" class="button button-secondary button-wide" id="importButton">↑ Импорт HTML / JSON</button>
@@ -79,13 +85,13 @@
         <div class="breadcrumb"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Показать содержание курса" aria-expanded="false" aria-controls="sidebar">☰</button><span id="courseCrumb"></span><span class="crumb-separator">/</span><span id="moduleCrumb"></span><span class="crumb-separator">/</span><span id="lessonCrumb"></span></div>
         <div class="editor-container">
           <div class="page-header">
-            <div><div class="eyebrow eyebrow-accent" id="lessonPosition">РЕДАКТИРОВАНИЕ УРОКА</div><h1 id="lessonHeading">Редактор урока</h1><p>Соберите урок из конспектов и заданий. Изменения сохраняются автоматически.</p></div>
+            <div><div class="eyebrow eyebrow-accent" id="lessonPosition">РЕДАКТИРОВАНИЕ УРОКА</div><h1 id="lessonHeading">Редактор урока</h1><p id="lessonIntro">Соберите урок из конспектов и заданий. Изменения сохраняются автоматически.</p></div>
             <span class="step-pill" id="lessonStepCount"></span>
           </div>
           <section class="editor-card" aria-label="Редактор">
             <div class="lesson-stepbar" id="lessonStepbar" aria-label="Шаги урока">
               <div id="stepTabs" class="lesson-step-tabs" role="tablist" aria-label="Шаги урока"></div>
-              <div class="stepbar-actions">
+              <div class="stepbar-actions" data-author-only>
                 <button type="button" id="addStepInline" class="button button-secondary">＋ Добавить шаг</button>
                 <details class="step-menu" id="stepMenu">
                   <summary class="button button-secondary" aria-label="Действия с шагом" title="Действия с шагом">⋮</summary>
@@ -98,16 +104,15 @@
                 </details>
               </div>
             </div>
-            <div id="stepContent" role="tabpanel"><div id="stepQuizPanel" class="step-quiz-panel" hidden></div><div id="noteEditorRegion"><div class="mode-row">
+            <div id="stepContent" role="tabpanel"><div id="stepQuizPanel" class="step-quiz-panel" hidden></div><div id="noteEditorRegion"><div class="mode-row" data-author-only>
               <div class="mode-tabs" role="tablist" aria-label="Режим редактора">
                 <button type="button" id="tabVisual" class="mode-tab active" data-mode="visual" role="tab" aria-selected="true" aria-controls="visualPanel">✎ Редактор</button>
                 <button type="button" id="tabSource" class="mode-tab" data-mode="source" role="tab" aria-selected="false" aria-controls="sourcePanel">&lt;/&gt; HTML</button>
-                <button type="button" id="tabPreview" class="mode-tab" data-mode="preview" role="tab" aria-selected="false" aria-controls="previewPanel">◉ Просмотр</button>
               </div>
               <span id="wordCount" class="word-count">0 слов</span>
             </div>
 
-            <div class="formatbar" id="formatbar" role="toolbar" aria-label="Форматирование текста">
+            <div class="formatbar" id="formatbar" role="toolbar" aria-label="Форматирование текста" data-author-only>
               <div class="tool-group">
                 <label for="blockType" class="visually-hidden">Тип блока</label>
                 <select id="blockType" title="Выбрать тип абзаца" aria-label="Тип блока">
@@ -181,19 +186,20 @@
                 <textarea id="sourceEditor" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="HTML-код шага" placeholder="<h2>Заголовок</h2>"></textarea>
               </div>
             </div>
-            <div id="previewPanel" class="editor-panel" role="tabpanel" aria-labelledby="tabPreview" hidden>
-              <iframe id="previewFrame" title="Предпросмотр готового HTML-урока" sandbox="allow-same-origin" loading="eager" scrolling="no"></iframe>
+            <div id="previewPanel" class="editor-panel" aria-label="Материал шага" hidden>
+              <iframe id="previewFrame" title="Материал шага" sandbox="allow-same-origin" loading="eager" scrolling="no"></iframe>
             </div>
 
-            <div class="editor-footer">
+            <div class="editor-footer" data-author-only>
               <span id="editorHint">💡 Совет: скопируй оформленный ответ ChatGPT и вставь его с помощью Ctrl+V.</span>
               <span class="html-badge">HTML</span>
             </div>
           </div></div>
           </section>
 
+          <div class="passage-actions" data-learner-only hidden><button id="completeNote" type="button" class="button button-primary">Отметить шаг пройденным</button><span id="passageStatus" role="status" aria-live="polite"></span></div>
           <div class="step-navigation"><button id="previousStep" class="button button-secondary">← Предыдущий шаг</button><span id="stepNavigationLabel"></span><button id="nextStep" class="button button-secondary">Следующий шаг →</button></div>
-          <div class="bottom-bar">
+          <div class="bottom-bar" data-author-only>
             <div class="bottom-notice"><span class="notice-icon">◎</span><span>Проект сохраняется в этом браузере. Для резервной копии выгрузи JSON.</span></div>
             <div class="bottom-buttons" id="noteCopyActions"><button type="button" class="button button-secondary" id="copyRich">⧉ Копировать оформление</button><button type="button" class="button button-secondary" id="copyHtml">⌘ HTML-код</button></div>
           </div>

@@ -780,7 +780,7 @@ test("lavender syntax colors appear in lesson, editing dialog, and exported HTML
   await expect(page.locator("#codeHighlight")).toHaveCSS("background-color", "rgb(244, 241, 255)");
   await expect(page.locator("#codeHighlight .code-token-keyword")).toHaveCount(1);
   await page.locator("#codeCancel").click();
-  await page.locator("#tabPreview").click();
+  await page.locator("#learnerView").click();
   const srcDoc = await page.locator("#previewFrame").getAttribute("srcdoc");
   expect(srcDoc).toContain("--code-surface:#f4f1ff");
   expect(srcDoc).toContain("background:var(--code-surface)");
@@ -872,7 +872,7 @@ test("editor and preview retain modest matching side margins", async ({ page }) 
   });
   expect(layout.paddingLeft).toBeGreaterThanOrEqual(18);
   expect(layout.paddingLeft).toBeLessThanOrEqual(29);
-  await page.locator("#tabPreview").click();
+  await page.locator("#learnerView").click();
   await expect.poll(()=>page.locator("#previewFrame").evaluate(f=>!!f.contentDocument?.body)).toBe(true);
   const preview=await page.locator("#previewFrame").evaluate(f=>{
     const b=f.contentDocument.body, st=f.contentWindow.getComputedStyle(b);
@@ -913,7 +913,7 @@ test("preview iframe grows to display long lesson and pre without internal scrol
       Array.from({length:75},(_,i)=>"func line_"+i+"():\n    print('long code line')").join("\n")+"</code></pre>";
     editor.dispatchEvent(new Event("input",{bubbles:true}));
   });
-  await page.locator("#tabPreview").click();
+  await page.locator("#learnerView").click();
   const frame=page.locator("#previewFrame");
   await expect.poll(() => frame.evaluate(el=>el.clientHeight)).toBeGreaterThan(3500);
   const data=await frame.evaluate(frame=>{
@@ -936,15 +936,16 @@ test("preview frame gets shorter when lesson is replaced by short content", asyn
     editor.innerHTML=Array.from({length:85},(_,i)=>"<p>Длинный абзац "+i+"</p>").join("");
     editor.dispatchEvent(new Event("input",{bubbles:true}));
   });
-  await page.locator("#tabPreview").click();
+  await page.locator("#learnerView").click();
   await expect.poll(() => page.locator("#previewFrame").evaluate(e=>e.clientHeight)).toBeGreaterThan(2500);
+  await page.locator("#authorView").click();
   await page.locator("#tabVisual").click();
   await page.evaluate(() => {
     const editor=document.querySelector("#editor");
     editor.innerHTML="<p>Короткий урок</p>";
     editor.dispatchEvent(new Event("input",{bubbles:true}));
   });
-  await page.locator("#tabPreview").click();
+  await page.locator("#learnerView").click();
   await expect.poll(() => page.locator("#previewFrame").evaluate(e=>e.clientHeight)).toBeLessThan(600);
 });
 
@@ -959,7 +960,7 @@ test("same code-surface variable colors editor, code dialog and preview", async 
   await page.locator("#editor pre").dblclick();
   await expect(page.locator("#codeHighlight")).toHaveCSS("background-color","rgb(231, 245, 255)");
   await page.locator("#codeCancel").click();
-  await page.locator("#tabPreview").click();
+  await page.locator("#learnerView").click();
   await expect.poll(() => page.locator("#previewFrame").evaluate(e =>
     getComputedStyle(e.contentDocument.querySelector("pre")).backgroundColor)).toBe("rgb(231, 245, 255)");
   const html=await page.locator("#previewFrame").getAttribute("srcdoc");
@@ -1002,7 +1003,7 @@ test("GDScript uses Godot-like semantic categories on the unchanged lavender bac
   await expect(page.locator("#codeHighlight .code-token-type").first()).toHaveCSS("color", "rgb(8, 126, 120)");
   await expect(page.locator("#codeHighlight .code-token-keyword").first()).toHaveCSS("color", "rgb(186, 49, 86)");
   await page.locator("#codeCancel").click();
-  await page.locator("#tabPreview").click();
+  await page.locator("#learnerView").click();
   const actual = await page.locator("#previewFrame").evaluate((frame) => {
     const doc = frame.contentDocument;
     const type = doc.querySelector(".code-token-type");

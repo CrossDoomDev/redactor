@@ -16,6 +16,11 @@
     preview: $("previewPanel")
   };
   let mode = "visual";
+  let courseView = "author";
+  let authorMode = "visual";
+  let authorSourceDraft = null;
+  const learnerAttempts = new Map();
+  const isAuthor = () => courseView === "author";
   let saveTimer = null;
   let toastTimer = null;
   let savedRange = null;
@@ -460,11 +465,87 @@
     const lesson = selectedLesson();
     return lesson.steps.find(step => step.id === lesson.activeStepId) || lesson.steps[0];
   }
+  function courseSteps() {
+    return project.modules.flatMap(module => module.lessonIds.flatMap(id => {
+      const lesson = project.lessons.find(item => item.id === id);
+      return lesson.steps.map(step => ({module, lesson, step}));
+    }));
+  }
+  function coursePosition() {
+    const entries = courseSteps();
+    return {entries, index: entries.findIndex(item => item.lesson.id === project.activeId && item.step.id === selectedStep().id)};
+  }
+  function attemptFor(lesson = selectedLesson(), step = selectedStep()) {
+    const key = JSON.stringify([lesson.id, step.id]), signature = JSON.stringify(step);
+    let attempt = learnerAttempts.get(key);
+    if (!attempt || attempt.signature !== signature) {
+      attempt = {signature, completed: false, answers: [], sort: null, result: null};
+      learnerAttempts.set(key, attempt);
+    }
+    return attempt;
+  }
+  function stepCompleted(lesson, step) {
+    const attempt = learnerAttempts.get(JSON.stringify([lesson.id, step.id]));
+    return !!attempt?.completed && attempt.signature === JSON.stringify(step);
+  }
+  function updateLearnerProgress() {
+    const entries = courseSteps(), done = entries.filter(({lesson, step}) => stepCompleted(lesson, step)).length;
+    $("learnerProgress").max = entries.length || 1;
+    $("learnerProgress").value = done;
+    $("courseProgressLabel").textContent = "Пройдено " + done + " из " + entries.length + " шагов";
+    const completed = stepCompleted(selectedLesson(), selectedStep());
+    $("completeNote").hidden = selectedStep().type !== "note";
+    $("completeNote").disabled = completed;
+    $("completeNote").textContent = completed ? "✓ Шаг пройден" : "Отметить шаг пройденным";
+    $("passageStatus").textContent = done === entries.length ? "Все шаги курса пройдены." : completed ? "Шаг пройден. Можно продолжать." : "";
+  }
+  function completeStep() {
+    if (isAuthor()) return;
+    attemptFor().completed = true;
+    updateLearnerProgress(); renderLessons();
+    window.dispatchEvent(new Event("kursograf:progress-changed"));
+  }
+  function navigateCourse(direction) {
+    const {entries, index} = coursePosition(), next = entries[index + direction];
+    if (!next) return;
+    saveNow();
+    project.activeId = next.lesson.id; next.lesson.activeStepId = next.step.id;
+    next.module.expanded = true;
+    mountLesson(); setMode("preview"); saveNow(); toggleSidebar(false);
+  }
+  function setCourseView(next) {
+    if (!["author", "learner"].includes(next) || next === courseView) return;
+    saveNow();
+    if (isAuthor()) {
+      authorMode = mode;
+      authorSourceDraft = mode === "source" ? {lessonId: selectedLesson().id, stepId: selectedStep().id, raw: sourceEditor.value, html: currentHtml()} : null;
+    }
+    courseView = next;
+    document.body.classList.toggle("learner-view", !isAuthor());
+    document.querySelectorAll("[data-learner-only]").forEach(el => { el.hidden = isAuthor(); });
+    document.querySelectorAll("[data-course-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.courseView === next)));
+    document.querySelectorAll("dialog[open]").forEach(dialog => dialog.close());
+    $("stepMenu").open = false; closeColorPalette();
+    editor.contentEditable = String(isAuthor());
+    sourceEditor.disabled = $("courseTitle").disabled = !isAuthor();
+    $("workspaceLabel").textContent = isAuthor() ? "Редактор курсов" : "Прохождение курса";
+    document.querySelector(".brand").setAttribute("aria-label", isAuthor() ? "Редактор курсов" : "Прохождение курса");
+    $("lessonIntro").textContent = isAuthor() ? "Соберите урок из конспектов и заданий. Изменения сохраняются автоматически." : "Изучайте материалы и выполняйте задания. Переходите между шагами и уроками курса.";
+    document.querySelector(".editor-card").setAttribute("aria-label", isAuthor() ? "Редактор" : "Материалы урока");
+    savedRange = null;
+    mountLesson();
+    if (isAuthor() && authorSourceDraft?.lessonId === selectedLesson().id && authorSourceDraft.stepId === selectedStep().id && authorSourceDraft.html === selectedStep().html) {
+      sourceEditor.value = authorSourceDraft.raw;
+    }
+    setMode(isAuthor() ? authorMode : "preview");
+    updateLearnerProgress(); toggleSidebar(false);
+  }
   function updateCourseContext() {
     const lesson = selectedLesson(), module = moduleForLesson(lesson.id);
     const mi = project.modules.indexOf(module) + 1, li = module.lessonIds.indexOf(lesson.id) + 1;
     if (document.activeElement !== $("courseTitle")) $("courseTitle").value = project.title;
     $("projectName").textContent = project.title;
+    $("studentCourseTitle").textContent = project.title;
     $("courseCrumb").textContent = project.title;
     $("moduleCrumb").textContent = module.title;
     $("lessonCrumb").textContent = lesson.title;
@@ -492,7 +573,7 @@
       actions.setAttribute("aria-label", "Настройки модуля «" + module.title + "»");
       actions.addEventListener("click", () => openStructure("module", module.id));
       const grip = structureGrip("module", module.id, module.title);
-      heading.append(grip, toggle, actions); group.append(heading);
+      heading.append(...(isAuthor() ? [grip, toggle, actions] : [toggle])); group.append(heading);
       if (module.expanded !== false) {
         module.lessonIds.forEach((id, li) => {
           const lesson = project.lessons.find(l => l.id === id);
@@ -505,19 +586,23 @@
           const icon = document.createElement("span"); icon.className = "lesson-icon"; icon.textContent = (mi + 1) + "." + (li + 1);
           const name = document.createElement("span"); name.className = "lesson-item-name"; name.textContent = lesson.title;
           const count = document.createElement("span"); count.className = "lesson-count"; count.textContent = lesson.steps.length;
-          count.title = "Шагов: " + lesson.steps.length;
+          if (!isAuthor()) {
+            const done = lesson.steps.filter(step => stepCompleted(lesson, step)).length;
+            count.textContent = done + "/" + lesson.steps.length;
+          }
+          count.title = isAuthor() ? "Шагов: " + lesson.steps.length : "Пройдено шагов: " + count.textContent;
           button.append(icon, name, count); button.addEventListener("click", () => switchLesson(lesson.id));
           const more = document.createElement("button"); more.type = "button"; more.className = "lesson-more"; more.textContent = "⋮";
           more.setAttribute("aria-label", "Настройки урока «" + lesson.title + "»");
           more.addEventListener("click", () => openStructure("lesson", id));
-          row.append(structureGrip("lesson", lesson.id, lesson.title), button, more); group.append(row);
+          row.append(...(isAuthor() ? [structureGrip("lesson", lesson.id, lesson.title), button, more] : [button])); group.append(row);
         });
         if (!module.lessonIds.length) {
           const empty = document.createElement("p"); empty.className = "module-empty";
-          empty.textContent = "Перетащите сюда урок или добавьте новый."; group.append(empty);
+          empty.textContent = isAuthor() ? "Перетащите сюда урок или добавьте новый." : "В модуле пока нет уроков."; group.append(empty);
         }
         const add = document.createElement("button"); add.type = "button"; add.className = "module-add-lesson"; add.textContent = "＋ Добавить урок";
-        add.addEventListener("click", () => createLesson(module.id)); group.append(add);
+        add.addEventListener("click", () => createLesson(module.id)); if (isAuthor()) group.append(add);
       }
       lessonList.append(group);
     });
@@ -532,6 +617,7 @@
     return grip;
   }
   function moveOutline(data, target) {
+    if (!isAuthor()) return;
     // Persist the active editor before changing structure; keep the same lesson and step open.
     saveNow();
     if (data.kind === "module") {
@@ -559,6 +645,7 @@
   }
   window.CourseReorder.bind({
     root: lessonList, handle: ".structure-grip",
+    enabled: isAuthor,
     source(grip) {
       const kind = grip.dataset.dragKind, id = grip.dataset.dragId;
       const entity = (kind === "module" ? project.modules : project.lessons).find(item => item.id === id);
@@ -581,6 +668,7 @@
     commit: moveOutline
   });
   lessonList.addEventListener("keydown", event => {
+    if (!isAuthor()) return;
     const grip = event.target.closest(".structure-grip");
     if (!grip || !event.altKey || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
     event.preventDefault();
@@ -599,6 +687,7 @@
     [...lessonList.querySelectorAll(".structure-grip")].find(el => el.dataset.dragKind === kind && el.dataset.dragId === id)?.focus();
   });
   function createLesson(moduleId) {
+    if (!isAuthor()) return;
     if (project.lessons.length >= 300) { toast("В одном курсе поддерживается до 300 уроков."); return; }
     saveNow();
     const module = project.modules.find(m => m.id === moduleId) || project.modules[0];
@@ -611,6 +700,7 @@
   }
   let structureTarget = null;
   function openStructure(kind, id = null) {
+    if (!isAuthor()) return;
     saveNow(); structureTarget = {kind, id};
     const isModule = kind === "module", fresh = !id;
     if (isModule && fresh && project.modules.length >= 100) { toast("В одном курсе поддерживается до 100 модулей."); return; }
@@ -912,6 +1002,7 @@
     $("wordCount").textContent = words + " " + noun;
   }
   function markDirty() {
+    if (!isAuthor()) return;
     if (mode === "visual") prepareCodeBlocks(editor);
     updateSaveState("Не сохранено", "dirty");
     updateCount();
@@ -922,8 +1013,8 @@
     clearTimeout(saveTimer);
     const lesson = selectedLesson();
     const step = selectedStep();
-    if (step.type === "note") { step.html = currentHtml(); lesson.html = step.html; }
-    project.markdown = $("markdownToggle").checked;
+    if (isAuthor() && step.type === "note") { step.html = currentHtml(); lesson.html = step.html; }
+    if (isAuthor()) project.markdown = $("markdownToggle").checked;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
       updateSaveState("Сохранено локально", "");
@@ -951,18 +1042,21 @@
     updateCount();
     renderLessons();
     setToolbarState();
+    if (!isAuthor()) updateLearnerProgress();
     window.dispatchEvent(new Event("kursograf:lesson-mounted"));
   }
   function switchLesson(id) {
     if (project.activeId === id) return;
     saveNow();
     project.activeId = id;
-    setMode("visual");
     mountLesson();
+    setMode(isAuthor() ? "visual" : "preview");
     saveNow();
     toggleSidebar(false);
   }
   function setMode(next) {
+    if (!isAuthor()) next = "preview";
+    else if (next === "preview") return;
     if (!panels[next]) return;
     if (next !== mode) {
       if (mode === "source") {
@@ -1458,6 +1552,7 @@
     setToolbarState();
   }
   function runCommand(command, value) {
+    if (!isAuthor()) return;
     if (mode !== "visual" || selectionTouchesCode()) return;
     if (selectedImage?.isConnected && /^justify(?:Left|Center|Right)$/.test(command)) {
       const figure = selectedImage.closest("figure");
@@ -1487,6 +1582,7 @@
     afterFormatting();
   }
   function insertHtml(html) {
+    if (!isAuthor()) return;
     if (selectionTouchesCode()) return;
     restoreSelection();
     document.execCommand("insertHTML", false, sanitizeHtml(html));
@@ -1789,6 +1885,7 @@
     });
   }
   function specialAction(action) {
+    if (!isAuthor()) return;
     if (mode !== "visual" || selectionTouchesCode()) return;
     restoreSelection();
     const states = queryActiveStates();
@@ -1879,6 +1976,7 @@
   }
 
   async function importFile(file) {
+    if (!isAuthor()) return;
     if (!file) return;
     if (file.size > MAX_IMPORT_BYTES) { toast("Файл слишком большой (лимит 3 МБ)."); return; }
     try {
@@ -2004,6 +2102,7 @@
   $("codeTextarea").addEventListener("scroll", syncCodeHighlightScroll);
   $("codeTextarea").addEventListener("keydown", onCodeKeydown);
   editor.addEventListener("dblclick", (event) => {
+    if (!isAuthor()) return;
     const target = event.target;
     const element = target instanceof Element ? target : target?.parentElement;
     const pre = element?.closest("pre");
@@ -2019,6 +2118,7 @@
     if (selectionTouchesCode()) event.preventDefault();
   });
   editor.addEventListener("beforeinput", (event) => {
+    if (!isAuthor()) { event.preventDefault(); return; }
     if (selectionTouchesCode()) { event.preventDefault(); return; }
     if (event.isComposing) return;
     if (event.inputType === "insertText" && event.data) {
@@ -2057,6 +2157,7 @@
   $("linkCancelTop").addEventListener("click", closeLinkDialog);
   $("linkDialog").addEventListener("close", () => { editingLink = null; linkRange = null; });
   editor.addEventListener("paste", (event) => {
+    if (!isAuthor()) { event.preventDefault(); return; }
     if (selectionTouchesCode()) { event.preventDefault(); return; }
     const clipboard = event.clipboardData;
     if (!clipboard) return;
@@ -2118,11 +2219,14 @@
   });
   $("addModule").addEventListener("click", () => openStructure("module"));
   $("courseTitle").addEventListener("input", () => {
+    if (!isAuthor()) return;
     project.title = $("courseTitle").value.trim() || "Без названия";
     saveNow();
   });
   $("courseTitle").addEventListener("blur", updateCourseContext);
   $("markdownToggle").addEventListener("change", saveNow);
+  document.querySelectorAll("[data-course-view]").forEach(button => button.addEventListener("click", () => setCourseView(button.dataset.courseView)));
+  $("completeNote").addEventListener("click", () => { if (selectedStep().type === "note") completeStep(); });
   function toggleSidebar(open) {
     $("sidebar").classList.toggle("open", open);
     $("sidebarBackdrop").hidden = !open;
@@ -2154,12 +2258,13 @@
   $("markdownToggle").checked = project.markdown;
   window.kursografBridge = {
     selectedLesson, selectedStep, saveNow, mountLesson, setMode, toast, makeId,
+    isAuthor, attemptFor, stepCompleted, completeStep, coursePosition, navigateCourse,
     persist: saveNow,
     switchStep(id) {
       const lesson = selectedLesson();
       if (!lesson.steps.some(step => step.id === id)) return;
       saveNow(); lesson.activeStepId = id;
-      setMode("visual"); mountLesson(); saveNow();
+      mountLesson(); setMode(isAuthor() ? "visual" : "preview"); saveNow();
     }
   };
   mountLesson();

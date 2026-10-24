@@ -90,6 +90,7 @@ test('single answer preview is interactive and author changes persist with all c
   await page.locator('[data-option="0"]').fill('GDScript');
   await page.locator('[data-option="1"]').fill('HTML');
   await page.locator('[data-field="explanation"]').fill('В Godot используется GDScript.');
+  await page.locator('#learnerView').click();
   await page.locator('[data-choice="1"]').check();
   await page.locator('[data-check]').click();
   await expect(page.locator('#stepResult')).toContainText('Ответ неверный');
@@ -97,6 +98,7 @@ test('single answer preview is interactive and author changes persist with all c
   await page.locator('[data-check]').click();
   await expect(page.locator('#stepResult')).toContainText('✓ Правильно!');
   await expect(page.locator('#stepResult')).toContainText('GDScript');
+  await page.locator('#authorView').click();
   await page.locator('[data-step="0"]').click();
   await expect(page.locator('#editor')).toContainText('Добро пожаловать');
   await page.locator('[data-step="1"]').click();
@@ -110,6 +112,7 @@ for (const type of ['multi','match','sort','table','blanks','number','text']) {
   test(`${type} task checks both wrong and correct answers and persists`, async ({page}) => {
     await addStep(page, type);
     await page.locator('[data-field="question"]').fill('Проверочное задание');
+    await page.locator('#learnerView').click();
     // The reversed initial order in sorting is intentionally wrong.
     await page.locator('[data-check]').click();
     await expect(page.locator('#stepResult')).toContainText('Ответ неверный');
@@ -139,13 +142,16 @@ test('table deletion remaps correct cells, and invalid task configuration preven
   await expect(page.locator('[data-cell="0:1"]')).toBeChecked();
   await page.locator('[data-remove="col:0"]').click();
   await expect(page.locator('[data-cell="0:0"]')).toBeChecked();
+  await page.locator('#learnerView').click();
   await page.locator('[data-answer-cell="0:0"]').check();
   await page.locator('[data-check]').click();
   await expect(page.locator('#stepResult')).toHaveText('✓ Правильно!');
+  await page.locator('#authorView').click();
   await addStep(page, 'multi');
   await page.locator('[data-correct="0"]').uncheck();
-  await expect(page.locator('[data-check]')).toBeDisabled();
   await expect(page.locator('.configuration-warning')).toContainText('правильный ответ');
+  await page.locator('#learnerView').click();
+  await expect(page.locator('[data-check]')).toBeDisabled();
 });
 
 test('legacy HTML project migrates; JSON export/import keeps hierarchy and sanitizes imported steps', async ({page}) => {
@@ -178,7 +184,7 @@ test('HTML import is listed in the active module and malformed step data is norm
   await importProject(page, {lessons:[{id:'broken',title:'Восстановленный урок',steps:[{id:'dup',type:'single',options:null},{id:'dup',type:'table',rows:null,cols:{}},null]}],modules:[null,{id:'m',lessonIds:['broken','broken']},{id:'m'}]});
   await expect(page.locator('[data-step]')).toHaveCount(3);
   await page.locator('[data-step="1"]').click();
-  await expect(page.locator('.step-grid')).toHaveCount(2);
+  await expect(page.locator('.step-grid')).toHaveCount(1);
   const project = await stored(page);
   expect(new Set(project.modules.map(m=>m.id)).size).toBe(project.modules.length);
   expect(new Set(project.lessons[0].steps.map(s=>s.id)).size).toBe(3);
@@ -228,9 +234,11 @@ test('lesson names change only in the outline; step types and compact actions st
   await expect(page.locator('#stepMenu summary')).toBeFocused();
   await addStep(page, 'single');
   await expect(page.locator('#stepTabs [aria-selected="true"]')).toHaveAttribute('aria-label', 'Шаг 2: Один ответ');
-  await expect(page.locator('#stepStudent h3')).toHaveText('Один ответ');
+  await expect(page.locator('#stepStudent')).toHaveCount(0);
   await page.locator('#stepMenu summary').click();
   await expect(page.locator('#stepDelete')).toBeEnabled();
   await page.locator('[data-field="question"]').click();
   await expect(page.locator('#stepDelete')).toBeHidden();
+  await page.locator('#learnerView').click();
+  await expect(page.locator('#stepStudent h3')).toHaveText('Один ответ');
 });

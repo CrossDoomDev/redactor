@@ -26,7 +26,6 @@
 .step-type-choices strong { display:block; font-weight:600; font-size:13px; }
 .step-type-choices small { display:block; margin-top:5px; color:#85909c; font-size:10px; line-height:1.5; }
 .step-quiz-panel { padding:24px; }
-.step-editor-cols { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:24px; align-items:start; }
 .step-settings,.step-student { min-width:0; }
 .panel-heading { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center; padding-bottom:18px; margin-bottom:20px; border-bottom:1px solid #e5e9ed; }
 .panel-heading h2 { margin:0; font-size:14px; font-weight:700; }
@@ -68,7 +67,6 @@
 .sort-answer-row button { padding:6px 10px; }
 .blanks-answer { line-height:2.8; font-size:13px; overflow-wrap:anywhere; white-space:pre-wrap; }
 .blanks-answer input { max-width:150px; width:100%; padding:8px; border:1px solid #d6dee7; border-radius:5px; }
-@media (max-width:1180px) { .step-editor-cols { grid-template-columns:1fr; } }
 @media (max-width:580px) {
   .lesson-stepbar { padding:12px; gap:8px; flex-wrap:wrap; }
   .lesson-step-tabs { flex-basis:100%; }
