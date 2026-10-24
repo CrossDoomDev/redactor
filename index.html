@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>IndieForge — редактор курсов</title>
-  <link rel="stylesheet" href="styles.css?v=20261024-course-drag">
+  <link rel="stylesheet" href="styles.css?v=20261024-outline-left">
   <script src="reorder.js" defer></script>
   <script src="course-model.js" defer></script>
-  <script src="app.js?v=20261024-course-drag" defer></script>
-  <link rel="stylesheet" href="step-inline.css?v=20261024-course-drag">
-  <link rel="stylesheet" href="forge-theme.css?v=20261024-course-drag">
-  <script src="step-inline.js?v=20261024-course-drag" defer></script>
+  <script src="app.js?v=20261024-outline-left" defer></script>
+  <link rel="stylesheet" href="step-inline.css?v=20261024-outline-left">
+  <link rel="stylesheet" href="forge-theme.css?v=20261024-outline-left">
+  <script src="step-inline.js?v=20261024-outline-left" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
@@ -83,15 +83,20 @@
             <span class="step-pill" id="lessonStepCount"></span>
           </div>
           <section class="editor-card" aria-label="Редактор">
-            <div class="lesson-details">
-              <label for="lessonTitle">НАЗВАНИЕ УРОКА</label>
-              <input type="text" maxlength="160" id="lessonTitle" placeholder="Введите название урока" autocomplete="off">
-            </div>
-
-            <div class="lesson-stepbar" id="lessonStepbar" aria-label="Шаги урока"><div id="stepTabs" class="lesson-step-tabs" role="tablist" aria-label="Шаги урока"></div><button type="button" id="addStepInline" class="button button-secondary">＋ Добавить шаг</button></div>
-            <div class="step-details">
-              <div class="step-caption"><span id="stepTypeLabel" class="eyebrow"></span><span id="stepPosition"></span></div>
-              <div class="step-title-row"><label for="stepTitle" class="visually-hidden">Название шага</label><input id="stepTitle" maxlength="160" placeholder="Название шага" aria-label="Название шага"><div class="step-actions"><button id="stepMoveLeft" class="button button-secondary" title="Переместить шаг влево" aria-label="Переместить шаг влево">←</button><button id="stepMoveRight" class="button button-secondary" title="Переместить шаг вправо" aria-label="Переместить шаг вправо">→</button><button id="stepDuplicate" class="button button-secondary">Дублировать</button><button id="stepDelete" class="button button-secondary danger-text">Удалить</button></div></div>
+            <div class="lesson-stepbar" id="lessonStepbar" aria-label="Шаги урока">
+              <div id="stepTabs" class="lesson-step-tabs" role="tablist" aria-label="Шаги урока"></div>
+              <div class="stepbar-actions">
+                <button type="button" id="addStepInline" class="button button-secondary">＋ Добавить шаг</button>
+                <details class="step-menu" id="stepMenu">
+                  <summary class="button button-secondary" aria-label="Действия с шагом" title="Действия с шагом">⋮</summary>
+                  <div class="step-actions-menu" aria-label="Действия с шагом">
+                    <button type="button" id="stepMoveLeft">← Переместить влево</button>
+                    <button type="button" id="stepMoveRight">→ Переместить вправо</button>
+                    <button type="button" id="stepDuplicate">Дублировать шаг</button>
+                    <button type="button" id="stepDelete" class="danger-text">Удалить шаг</button>
+                  </div>
+                </details>
+              </div>
             </div>
             <div id="stepContent" role="tabpanel"><div id="stepQuizPanel" class="step-quiz-panel" hidden></div><div id="noteEditorRegion"><div class="mode-row">
               <div class="mode-tabs" role="tablist" aria-label="Режим редактора">

@@ -41,10 +41,10 @@ test.beforeEach(async ({page}) => {
   await page.goto('/');
 });
 
-test('outline is on the right; creation buttons follow their containing list', async ({page}) => {
+test('outline is on the left; creation buttons follow their containing list', async ({page}) => {
   const sidebar = await page.locator('#sidebar').boundingBox();
   const main = await page.locator('.main').boundingBox();
-  expect(sidebar.x).toBeGreaterThanOrEqual(main.x + main.width - 1);
+  expect(sidebar.x + sidebar.width).toBeLessThanOrEqual(main.x + 1);
   await expect(page.locator('#addLesson,.section-heading button')).toHaveCount(0);
   for (const id of ['first', 'second', 'empty']) {
     await expect(group(page, id).locator(':scope > :last-child')).toHaveClass('module-add-lesson');
@@ -98,14 +98,14 @@ test('step drag preserves selected step, separate HTML, quiz settings and number
   await page.locator('#tabSource').click();
   await page.locator('#sourceEditor').fill('<p>Изменённый конспект</p>');
   await drag(page, page.locator('[data-step-id="a-quiz"]'), page.locator('[data-step-id="a-note"]'), {horizontal:true});
-  await expect(page.locator('#stepPosition')).toHaveText('Шаг 2 из 3');
+  await expect(page.locator('#stepNavigationLabel')).toHaveText('2 / 3');
   await expect(page.locator('[data-step-id="a-note"]')).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#tabSource')).toHaveAttribute('aria-selected', 'true');
   expect((await stored(page)).lessons[0].steps.map(s => s.id)).toEqual(['a-quiz', 'a-note', 'a-end']);
   await page.locator('[data-step-id="a-quiz"]').click();
   await expect(page.locator('[data-field="question"]')).toHaveValue('Вопрос a');
   await page.reload();
-  await expect(page.locator('#stepPosition')).toHaveText('Шаг 1 из 3');
+  await expect(page.locator('#stepNavigationLabel')).toHaveText('1 / 3');
   await page.locator('[data-step-id="a-note"]').click();
   await expect(page.locator('#editor')).toHaveText('Изменённый конспект');
 });
@@ -123,7 +123,7 @@ test('Escape and dropping outside the outline leave structure intact', async ({p
   await page.mouse.up();
   await expect(page.locator('.reorder-ghost')).toHaveCount(0);
   await begin();
-  await page.mouse.move(50, 200, {steps:5});
+  await page.mouse.move(700, 200, {steps:5});
   await page.mouse.up();
   await expect(page.locator('.reorder-ghost')).toHaveCount(0);
   expect((await stored(page)).modules[0].lessonIds).toEqual(['a', 'b']);
@@ -136,13 +136,13 @@ test('keyboard handles reorder and transfer lessons without opening another less
   await page.keyboard.press('Alt+ArrowRight');
   expect((await stored(page)).modules[1].lessonIds).toEqual(['c', 'a']);
   await expect(grip(page, 'lesson', 'a')).toBeFocused();
-  await expect(page.locator('#lessonTitle')).toHaveValue('Урок a');
+  await expect(page.locator('#lessonHeading')).toHaveText('Урок a');
 });
 
 test('touch drag works in the mobile outline', async ({page, context}) => {
   await page.setViewportSize({width:390, height:900});
   await page.locator('#menuToggle').click();
-  await expect.poll(async () => Math.round((await page.locator('#sidebar').boundingBox()).x)).toBe(84);
+  await expect.poll(async () => Math.round((await page.locator('#sidebar').boundingBox()).x)).toBe(0);
   const from = await grip(page, 'lesson', 'b').boundingBox();
   const to = await page.locator('[data-lesson-id="a"]').boundingBox();
   const cdp = await context.newCDPSession(page);

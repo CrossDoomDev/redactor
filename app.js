@@ -5,7 +5,6 @@
   const $ = (id) => document.getElementById(id);
   const editor = $("editor");
   const sourceEditor = $("sourceEditor");
-  const lessonTitle = $("lessonTitle");
   const lessonList = $("lessonList");
   const saveState = $("saveState");
   const previewFrame = $("previewFrame");
@@ -608,7 +607,7 @@
     project.lessons.push(lesson); module.lessonIds.push(lesson.id); module.expanded = true;
     project.activeId = lesson.id;
     setMode("visual"); mountLesson(); saveNow();
-    lessonTitle.focus(); lessonTitle.select();
+    lessonList.querySelector(".lesson-item.active + .lesson-more")?.focus();
   }
   let structureTarget = null;
   function openStructure(kind, id = null) {
@@ -922,7 +921,6 @@
   function saveNow() {
     clearTimeout(saveTimer);
     const lesson = selectedLesson();
-    lesson.title = lessonTitle.value.trim() || "Без названия";
     const step = selectedStep();
     if (step.type === "note") { step.html = currentHtml(); lesson.html = step.html; }
     project.markdown = $("markdownToggle").checked;
@@ -939,7 +937,6 @@
     const lesson = selectedLesson();
     const step = selectedStep();
     lesson.html = step.type === "note" ? step.html : "";
-    lessonTitle.value = lesson.title;
     editor.innerHTML = sanitizeHtml(lesson.html);
     prepareCodeBlocks(editor);
     sourceEditor.value = prettyHtml(lesson.html);
@@ -1054,7 +1051,7 @@
   previewFrame.addEventListener("load", observePreviewSize);
   window.addEventListener("resize", sizePreviewFrame, {passive:true});
   function standaloneHtml() {
-    const title = lessonTitle.value.trim() || "Урок";
+    const title = selectedLesson().title || "Урок";
     const html = prettyHtml(currentHtml());
     const rendered = document.createElement("div");
     rendered.innerHTML = html;
@@ -2094,11 +2091,6 @@
     event.preventDefault();
     sourceEditor.setRangeText("  ", sourceEditor.selectionStart, sourceEditor.selectionEnd, "end");
     sourceEditor.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  lessonTitle.addEventListener("input", () => {
-    selectedLesson().title = lessonTitle.value.trim() || "Без названия";
-    renderLessons();
-    markDirty();
   });
   editor.addEventListener("keyup", () => { captureSelection(); setToolbarState(); });
   editor.addEventListener("mouseup", () => { captureSelection(); setToolbarState(); });

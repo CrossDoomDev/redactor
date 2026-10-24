@@ -21,7 +21,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .button:hover:not(:disabled) { transform:none; }
 .button-secondary:hover:not(:disabled) { background:#fff7f2; border-color:#eec9b8; color:#a43e15; }
 .workspace { align-items:stretch; }
-.sidebar { order:2; position:sticky; top:72px; align-self:flex-start; max-height:calc(100dvh - 72px); overflow-y:auto; flex:0 0 306px; width:306px; background:#17222e; color:#dbe3eb; border-right:0; border-left:1px solid #263442; padding:28px 14px 20px; gap:14px; scrollbar-width:thin; }
+.sidebar { position:sticky; top:72px; align-self:flex-start; max-height:calc(100dvh - 72px); overflow-y:auto; flex:0 0 306px; width:306px; background:#17222e; color:#dbe3eb; border-left:0; border-right:1px solid #263442; padding:28px 14px 20px; gap:14px; scrollbar-width:thin; }
 .sidebar-top { padding:0 12px 10px; }
 .sidebar .eyebrow { color:#9fadb9; font-size:10px; }
 .course-title { display:block; width:100%; margin:12px 0 8px; padding:9px 0; border:1px solid transparent; border-radius:5px; background:transparent; color:#fff; font-size:18px; line-height:1.5; font-weight:700; resize:none; overflow:hidden; }
@@ -74,9 +74,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .step-pill { background:#fff; color:#687280; border-color:#e0e4e8; padding:9px 12px; font-weight:500; }
 .editor-container { max-width:1280px; margin:0 auto; padding:0 24px 40px; }
 .editor-card { border-color:#dfe3e8; border-radius:10px; box-shadow:var(--shadow); }
-.lesson-details { padding:22px 24px 18px; }
-.lesson-details label { color:#757f8c; font-size:10px; }
-.lesson-details input { padding:11px 13px; border-color:#dfe4ea; font-size:16px; }
 .mode-row { align-items:center; gap:12px; padding:12px 24px; }
 .mode-tab { padding:10px 14px; border:1px solid #dbe1e7; border-radius:10px; color:#697383; background:#fff; transition:background .15s,border-color .15s; }
 .mode-tab.active { color:#ae4217; border-color:#dc8a60; background:#fff1e7; box-shadow:0 1px 3px #8c36100c; }
@@ -119,7 +116,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .topbar .save-state { display:none; }
   .topbar .brand { min-width:0; }
   .top-divider { display:none; }
-  .sidebar { position:fixed; inset:72px 0 0 auto; left:auto; z-index:80; overflow:auto; transform:translateX(100%); width:306px; max-width:calc(100vw - 40px); transition:transform .18s ease; min-height:0; }
+  .sidebar { position:fixed; inset:72px auto 0 0; z-index:80; overflow:auto; transform:translateX(-100%); width:306px; max-width:calc(100vw - 40px); transition:transform .18s ease; min-height:0; }
   .sidebar.open { transform:translateX(0); }
   .sidebar-backdrop:not([hidden]) { display:block; position:fixed; inset:72px 0 0; z-index:75; background:#10192380; border:0; }
   .mobile-menu { display:block; }
@@ -129,7 +126,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .editor-container { padding-inline:12px; }
   .page-header { margin:20px 0; }
   .page-header h1 { font-size:23px; }
-  .lesson-details { padding:18px; }
 }
 @media (max-width:580px) {
   .topbar { padding-inline:12px; gap:8px; }
@@ -143,7 +139,6 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .top-actions { gap:5px; }
   .editor-container { padding-inline:8px; }
   .page-header p { font-size:11px; }
-  .lesson-details { padding:16px 14px; }
   .mode-row { padding-inline:14px; }
   .mode-tabs { gap:6px; }
   .mode-tab { padding:9px 10px; }

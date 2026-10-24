@@ -90,10 +90,6 @@ button:disabled { opacity: .5; cursor: default; }
 .step-pill { padding: 10px 13px; border: 1px solid #e3e2ff; color: #7363d9; background: #eeecff; border-radius: 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .step-pill-dot { display: inline-block; width: 7px; height: 7px; background: #7867ea; border-radius: 50%; margin-right: 6px; }
 .editor-card { border: 1px solid #e4e8f2; border-radius: 14px; background: #fff; box-shadow: var(--shadow); overflow: visible; }
-.lesson-details { padding: 24px 28px 22px; }
-.lesson-details label { color: #949fb2; display: block; font-size: 10px; letter-spacing: 1.25px; font-weight: 800; margin-bottom: 12px; }
-.lesson-details input { width: 100%; background: #fff; color: #2c3551; border: 1px solid #e7eaf3; border-radius: 8px; padding: 14px 15px; font-size: 15px; font-weight: 600; outline-color: #a69efa; }
-.lesson-details input::placeholder { color: #c1c7d3; }
 .mode-row { border-bottom: 1px solid #e9ecf4; display: flex; align-items: end; justify-content: space-between; padding: 0 25px; }
 .mode-tabs { display: flex; gap: 25px; }
 .mode-tab { padding: 14px 0; background: transparent; border: none; border-bottom: 2px solid transparent; color: #a2aabd; font-size: 12px; font-weight: 700; }
@@ -199,7 +195,6 @@ button:disabled { opacity: .5; cursor: default; }
   .step-pill { display: none; }
   .editor-container { padding-inline: 11px; }
   .breadcrumb { padding-inline: 13px; }
-  .lesson-details { padding: 18px 15px; }
   .mode-row { padding: 0 12px; }
   .mode-tabs { gap: 14px; }
   .mode-tab { font-size: 10px; }

@@ -15,6 +15,15 @@ async function writeNote(page, text) {
   await page.locator('#tabSource').click();
   await page.locator('#sourceEditor').fill(`<p>${text}</p>`);
 }
+async function renameLesson(page, title) {
+  await page.locator('.lesson-item.active + .lesson-more').click();
+  await page.locator('#structureTitle').fill(title);
+  await page.locator('#structureForm button[type="submit"]').click();
+}
+async function stepAction(page, id) {
+  await page.locator('#stepMenu summary').click();
+  await page.locator('#' + id).click();
+}
 
 test.beforeEach(async ({page}) => { await page.goto('/'); });
 
@@ -27,7 +36,7 @@ test('course outline, names, module CRUD, lesson move, duplication and deletion 
   const module = page.locator('.course-module').last();
   await expect(module.locator('.module-toggle')).toContainText('Продвинутый Godot');
   await module.locator('.module-add-lesson').click();
-  await page.locator('#lessonTitle').fill('Сигналы и события');
+  await renameLesson(page, 'Сигналы и события');
   await writeNote(page, 'Содержимое нового урока');
   await page.locator('.lesson-item.active + .lesson-more').click();
   await page.locator('#structureModule').selectOption({label:'Знакомство с Godot'});
@@ -36,7 +45,7 @@ test('course outline, names, module CRUD, lesson move, duplication and deletion 
   await expect(page.locator('#editor')).toContainText('Содержимое нового урока');
   await page.locator('.lesson-item.active + .lesson-more').click();
   await page.locator('#structureDuplicate').click();
-  await expect(page.locator('#lessonTitle')).toHaveValue('Сигналы и события (копия)');
+  await expect(page.locator('#lessonHeading')).toHaveText('Сигналы и события (копия)');
   await expect(page.locator('#editor')).toContainText('Содержимое нового урока');
   await page.locator('.lesson-item.active + .lesson-more').click();
   page.once('dialog', dialog => dialog.accept());
@@ -54,30 +63,29 @@ test('course outline, names, module CRUD, lesson move, duplication and deletion 
 test('text steps keep separate HTML on immediate switches, duplication, reordering and reload', async ({page}) => {
   await writeNote(page, 'Первый конспект');
   await addStep(page, 'note');
-  await page.locator('#stepTitle').fill('Второй конспект');
   await writeNote(page, 'Второй текст');
   await page.locator('[data-step="0"]').click();
   await expect(page.locator('#editor')).toHaveText('Первый конспект');
   await page.locator('#stepTabs').getByRole('tab', {selected:true}).press('ArrowRight');
   await expect(page.locator('#editor')).toHaveText('Второй текст');
-  await page.locator('#stepDuplicate').click();
+  await stepAction(page, 'stepDuplicate');
+  const duplicateId = await page.locator('#stepTabs [aria-selected="true"]').getAttribute('data-step-id');
   await expect(page.locator('#editor')).toHaveText('Второй текст');
-  await page.locator('#stepMoveLeft').click();
-  await expect(page.locator('#stepPosition')).toHaveText('Шаг 2 из 3');
+  await stepAction(page, 'stepMoveLeft');
+  await expect(page.locator('#stepNavigationLabel')).toHaveText('2 / 3');
   await page.locator('.lesson-item').nth(1).click();
   await page.locator('.lesson-item').first().click();
-  await expect(page.locator('#stepTitle')).toHaveValue('Второй конспект (копия)');
+  await expect(page.locator('#stepTabs [aria-selected="true"]')).toHaveAttribute('data-step-id', duplicateId);
   await page.reload();
-  await expect(page.locator('#stepTitle')).toHaveValue('Второй конспект (копия)');
+  await expect(page.locator('#stepTabs [aria-selected="true"]')).toHaveAttribute('data-step-id', duplicateId);
   await expect(page.locator('#editor')).toHaveText('Второй текст');
   page.once('dialog', dialog => dialog.accept());
-  await page.locator('#stepDelete').click();
+  await stepAction(page, 'stepDelete');
   await expect(page.locator('[data-step]')).toHaveCount(2);
 });
 
 test('single answer preview is interactive and author changes persist with all course steps', async ({page}) => {
   await addStep(page, 'single');
-  await page.locator('#stepTitle').fill('Проверка знаний');
   await page.locator('[data-field="question"]').fill('Какой язык используется в Godot?');
   await page.locator('[data-option="0"]').fill('GDScript');
   await page.locator('[data-option="1"]').fill('HTML');
@@ -93,7 +101,7 @@ test('single answer preview is interactive and author changes persist with all c
   await expect(page.locator('#editor')).toContainText('Добро пожаловать');
   await page.locator('[data-step="1"]').click();
   await page.reload();
-  await expect(page.locator('#stepTitle')).toHaveValue('Проверка знаний');
+  await expect(page.locator('#stepTabs [aria-selected="true"]')).toHaveAttribute('aria-label', 'Шаг 2: Один ответ');
   await expect(page.locator('[data-option="0"]')).toHaveValue('GDScript');
   await expect(page.locator('#exportHtml')).toBeDisabled();
 });
@@ -119,7 +127,7 @@ for (const type of ['multi','match','sort','table','blanks','number','text']) {
     await expect(page.locator('#stepResult')).toHaveText('✓ Правильно!');
     await page.reload();
     await expect(page.locator('[data-field="question"]')).toHaveValue('Проверочное задание');
-    await expect(page.locator('#stepTypeLabel')).toHaveText({multi:'Несколько ответов',match:'Сопоставление',sort:'Сортировка',table:'Таблица',blanks:'Пропуски',number:'Числовой ответ',text:'Текстовый ответ'}[type]);
+    await expect(page.locator('#stepTabs [aria-selected="true"]')).toHaveAttribute('aria-label', 'Шаг 2: ' + {multi:'Несколько ответов',match:'Сопоставление',sort:'Сортировка',table:'Таблица',blanks:'Пропуски',number:'Числовой ответ',text:'Текстовый ответ'}[type]);
   });
 }
 
@@ -191,6 +199,38 @@ test('responsive layout, mobile outline and all step scripts work without browse
   await page.locator('.lesson-item').nth(1).click();
   await expect(page.locator('#menuToggle')).toHaveAttribute('aria-expanded','false');
   await expect(page.locator('#editor')).toBeVisible();
+  await page.locator('#stepMenu summary').click();
   await expect(page.locator('#stepDelete')).toBeDisabled();
   expect(errors).toEqual([]);
+});
+
+test('lesson names change only in the outline; step types and compact actions stay usable', async ({page}) => {
+  await expect(page.locator('#lessonTitle,#stepTitle,.lesson-details,.step-details')).toHaveCount(0);
+  await writeNote(page, 'Материал до переименования');
+  await renameLesson(page, 'Название из меню');
+  await expect(page.locator('#lessonHeading')).toHaveText('Название из меню');
+  await expect(page.locator('.lesson-item.active')).toContainText('Название из меню');
+  await writeNote(page, 'Материал после переименования');
+  const downloadPromise = page.waitForEvent('download');
+  await page.locator('#exportHtml').click();
+  const download = await downloadPromise;
+  const html = await fs.readFile(await download.path(), 'utf8');
+  expect(html).toContain('<title>Название из меню</title>');
+  await page.reload();
+  await expect(page.locator('#lessonHeading')).toHaveText('Название из меню');
+  await expect(page.locator('#editor')).toHaveText('Материал после переименования');
+  await page.locator('#stepMenu summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#stepDelete')).toBeVisible();
+  await expect(page.locator('#stepDelete')).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#stepDelete')).toBeHidden();
+  await expect(page.locator('#stepMenu summary')).toBeFocused();
+  await addStep(page, 'single');
+  await expect(page.locator('#stepTabs [aria-selected="true"]')).toHaveAttribute('aria-label', 'Шаг 2: Один ответ');
+  await expect(page.locator('#stepStudent h3')).toHaveText('Один ответ');
+  await page.locator('#stepMenu summary').click();
+  await expect(page.locator('#stepDelete')).toBeEnabled();
+  await page.locator('[data-field="question"]').click();
+  await expect(page.locator('#stepDelete')).toBeHidden();
 });

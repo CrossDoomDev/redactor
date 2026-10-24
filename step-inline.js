@@ -52,11 +52,9 @@
   }
   function renderTabs() {
     const active = index(), step = selected();
-    $("stepTabs").innerHTML = lesson().steps.map((s, i) => `<button type="button" id="step-tab-${i}" class="step-tab ${i === active ? "active" : ""}" data-step="${i}" data-step-id="${esc(s.id)}" role="tab" aria-selected="${i === active}" aria-controls="stepContent" tabindex="${i === active ? "0" : "-1"}" aria-label="Шаг ${i + 1}: ${esc(types[s.type].name)} — ${esc(s.title)}" title="${esc(s.title)} · ${types[s.type].name}. Перетащите, чтобы изменить порядок."><span class="step-number">${i + 1}</span><span class="step-symbol" aria-hidden="true">${types[s.type].icon}</span></button>`).join("");
+    $("stepTabs").innerHTML = lesson().steps.map((s, i) => `<button type="button" id="step-tab-${i}" class="step-tab ${i === active ? "active" : ""}" data-step="${i}" data-step-id="${esc(s.id)}" role="tab" aria-selected="${i === active}" aria-controls="stepContent" tabindex="${i === active ? "0" : "-1"}" aria-label="Шаг ${i + 1}: ${esc(types[s.type].name)}" title="${types[s.type].name}. Перетащите, чтобы изменить порядок."><span class="step-number">${i + 1}</span><span class="step-symbol" aria-hidden="true">${types[s.type].icon}</span></button>`).join("");
     $("stepContent").setAttribute("aria-labelledby", "step-tab-" + active);
-    $("stepTitle").value = step.title;
-    $("stepTypeLabel").textContent = types[step.type].name;
-    $("stepPosition").textContent = "Шаг " + (active + 1) + " из " + lesson().steps.length;
+    $("stepMenu").open = false;
     $("stepNavigationLabel").textContent = (active + 1) + " / " + lesson().steps.length;
     $("stepMoveLeft").disabled = $("previousStep").disabled = active === 0;
     $("stepMoveRight").disabled = $("nextStep").disabled = active === lesson().steps.length - 1;
@@ -75,7 +73,7 @@
   function student() {
     const step = selected();
     if (step.type === "note") return;
-    let html = `<h3>${esc(step.title)}</h3><p class="student-question">${esc(step.question || "Здесь появится условие задания.")}</p>`;
+    let html = `<h3>${esc(types[step.type].name)}</h3><p class="student-question">${esc(step.question || "Здесь появится условие задания.")}</p>`;
     if (["single", "multi"].includes(step.type)) html += step.options.map((o, i) => `<label class="student-option"><input type="${step.type === "single" ? "radio" : "checkbox"}" name="studentChoice" data-choice="${i}"><span>${esc(o.text)}</span></label>`).join("");
     if (step.type === "match") html += step.pairs.map((p, i) => `<label class="match-answer"><span>${esc(p[0])}</span><select aria-label="Ответ для ${esc(p[0])}" data-match="${i}"><option value="">Выберите соответствие</option>${step.pairs.map((pair, j) => ({pair, j})).reverse().map(({pair, j}) => `<option value="${j}">${esc(pair[1])}</option>`).join("")}</select></label>`).join("");
     if (step.type === "sort") { sortAnswer = step.items.map((_, i) => i).reverse(); html += '<div id="sortAnswer"></div>'; }
@@ -133,7 +131,7 @@
     lesson().steps.splice(index() + 1, 0, step);
     $("stepTypeDialog").close();
     b.switchStep(step.id);
-    $("stepTitle").focus(); $("stepTitle").select();
+    $("stepTabs").querySelector('[aria-selected="true"]').focus();
   }
   function move(direction) {
     b.saveNow();
@@ -146,7 +144,7 @@
     root: $("stepTabs"), handle: ".step-tab",
     source(tab) {
       const step = lesson().steps.find(s => s.id === tab.dataset.stepId);
-      return step && {id: step.id, lessonId: lesson().id, label: step.title};
+      return step && {id: step.id, lessonId: lesson().id, label: types[step.type].name};
     },
     locate(data, hit, x) {
       const tab = hit.closest(".step-tab");
@@ -179,13 +177,20 @@
     const target = event.key === "Home" ? 0 : event.key === "End" ? lesson().steps.length - 1 : (index() + (event.key === "ArrowRight" ? 1 : -1) + lesson().steps.length) % lesson().steps.length;
     b.switchStep(lesson().steps[target].id); $("stepTabs").querySelector('[aria-selected="true"]').focus();
   });
-  $("stepTitle").addEventListener("input", () => {
-    selected().title = $("stepTitle").value;
-    b.persist();
-    const tab = $("stepTabs").querySelector('[aria-selected="true"]');
-    tab.title = selected().title;
-    tab.setAttribute("aria-label", `Шаг ${index() + 1}: ${types[selected().type].name} — ${selected().title}`);
-    if (selected().type !== "note") student();
+  $("stepMenu").addEventListener("click", event => {
+    if (event.target.closest("button:not(:disabled)")) {
+      $("stepMenu").open = false;
+      $("stepMenu").querySelector("summary").focus();
+    }
+  });
+  document.addEventListener("pointerdown", event => {
+    if (!$("stepMenu").contains(event.target)) $("stepMenu").open = false;
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && $("stepMenu").open) {
+      $("stepMenu").open = false;
+      $("stepMenu").querySelector("summary").focus();
+    }
   });
   $("previousStep").onclick = () => { if (index() > 0) b.switchStep(lesson().steps[index() - 1].id); };
   $("nextStep").onclick = () => { if (index() < lesson().steps.length - 1) b.switchStep(lesson().steps[index() + 1].id); };
@@ -194,11 +199,11 @@
   $("stepDuplicate").onclick = () => {
     if (lesson().steps.length >= 150) { b.toast("В одном уроке поддерживается до 150 шагов."); return; }
     b.saveNow();
-    const copy = structuredClone(selected()); copy.id = b.makeId(); copy.title += " (копия)";
+    const copy = structuredClone(selected()); copy.id = b.makeId();
     lesson().steps.splice(index() + 1, 0, copy); b.switchStep(copy.id);
   };
   $("stepDelete").onclick = () => {
-    if (lesson().steps.length <= 1 || !confirm("Удалить шаг «" + selected().title + "»?")) return;
+    if (lesson().steps.length <= 1 || !confirm("Удалить шаг " + (index() + 1) + " («" + types[selected().type].name + "»)?")) return;
     b.saveNow();
     const old = index(); lesson().steps.splice(old, 1);
     lesson().activeStepId = lesson().steps[Math.min(old, lesson().steps.length - 1)].id;

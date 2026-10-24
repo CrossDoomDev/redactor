@@ -506,6 +506,8 @@ async function prepareResizableImage(page) {
   }, pixel);
   const img = page.locator("#editor figure.lesson-image img");
   await expect(img).toBeVisible();
+  // Leave room for the corner handles, which extend beyond the image itself.
+  await img.evaluate(el => el.scrollIntoView({block:"center"}));
   await img.hover();
   await expect(page.locator("#imageResizeOverlay")).toHaveClass(/visible/);
   return img;
@@ -513,7 +515,9 @@ async function prepareResizableImage(page) {
 async function dragImageHandle(page, corner, dx, dy) {
   // The opposite corner may move below the browser viewport after enlarging
   // the image, so bring the image fully into view before the next drag.
-  await page.locator("#editor figure.lesson-image img").scrollIntoViewIfNeeded();
+  const img = page.locator("#editor figure.lesson-image img");
+  await img.evaluate(el => el.scrollIntoView({block:"center"}));
+  await img.hover();
   const handle = page.locator("#imageResizeOverlay .image-resize-" + corner);
   await expect(handle).toBeVisible();
   await expect(handle).toBeInViewport();
@@ -648,6 +652,7 @@ test("continuous diagonal resize remains monotone with varying X and Y movement"
     samples.push(Number(await img.getAttribute("width")));
   }
   await page.mouse.up();
+  expect(samples.at(-1)).toBeGreaterThan(280);
   for (let i = 1; i < samples.length; i++) {
     expect(samples[i]).toBeGreaterThanOrEqual(samples[i - 1]);
     expect(samples[i] - samples[i - 1]).toBeLessThanOrEqual(15);
@@ -670,7 +675,8 @@ test("image drag round trip through original size remains continuous and reversi
     readings.push({...state,dx,dy});
   }
   await page.mouse.up();
-  console.log("ROUNDTRIP", JSON.stringify(readings));
+  expect(Math.max(...readings.map(r => r.width))).toBeGreaterThan(280);
+  expect(Math.min(...readings.map(r => r.width))).toBeLessThan(280);
   for(let i=1;i<readings.length;i++){
     const dx=readings[i].dx-readings[i-1].dx;
     const dy=readings[i].dy-readings[i-1].dy;
