@@ -46,3 +46,15 @@ dialog input,dialog textarea,dialog select{background:#0c1722!important;color:#f
 .save-state,.brand-sub{color:#b7c5d7!important}
 a{color:#ffad7c}
 @media(max-width:760px){.lesson-stepbar{top:0}.course-module{margin:7px 0}.step-quiz-panel{padding:12px}}
+
+.article-content,.rich-editor,.rich-editor p,.rich-editor li,.rich-editor blockquote,.rich-editor h1,.rich-editor h2,.rich-editor h3{color:#eaf0f7!important}
+.rich-editor a{color:#ffad7c!important}
+.rich-editor pre,.rich-editor code,.code-input-shell,.html-source-shell{background:#192635!important;color:#eaf0f7!important;border-color:#38485b!important}
+.rich-editor pre code{color:inherit!important}
+.rich-editor [contenteditable="false"]{cursor:default}
+#previewFrame{background:#fff;border-radius:8px}
+.sidebar-bottom .toggle-line{color:#dce6f2!important}
+.lesson-list .lesson-item:hover,.module-toggle:hover,.module-add-lesson:hover{background:#273543!important}
+.lesson-icon{background:#2b3745!important}
+.top-actions .button,.bottom-buttons .button{white-space:nowrap}
+@media(max-width:640px){.editor-container{padding:0 12px 32px!important}.breadcrumb{padding:14px 12px 0!important}}
