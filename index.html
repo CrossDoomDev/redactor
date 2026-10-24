@@ -3,12 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>Редактор курсов — прототип</title>
-  <link rel="stylesheet" href="styles.css?v=20261022-godot-light-tokens-v5">
-  <script src="app.js?v=20261022-godot-light-tokens-v5" defer></script>
-  <link rel="stylesheet" href="step-inline.css?v=2">\n  <link rel="stylesheet" href="forge-theme.css?v=1">
-  <script src="step-inline.js?v=2" defer></script>
+  <meta name="color-scheme" content="light">
+  <title>IndieForge — редактор курсов</title>
+  <link rel="stylesheet" href="styles.css?v=20261024-course-drag">
+  <script src="reorder.js" defer></script>
+  <script src="course-model.js" defer></script>
+  <script src="app.js?v=20261024-course-drag" defer></script>
+  <link rel="stylesheet" href="step-inline.css?v=20261024-course-drag">
+  <link rel="stylesheet" href="forge-theme.css?v=20261024-course-drag">
+  <script src="step-inline.js?v=20261024-course-drag" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
@@ -40,27 +43,29 @@
     <header class="topbar">
       <div class="brand" aria-label="Редактор курсов">
         <span class="brand-mark" aria-hidden="true"><svg class="brand-icon" viewBox="0 0 24 24"><use href="#ic-book"></use></svg></span>
-        <div><strong>Курсограф</strong><span class="brand-sub">Инди-кузница · редактор курсов</span></div>
+        <div><strong>IndieForge</strong><span class="brand-sub">Редактор курсов</span></div>
       </div>
       <span class="top-divider" aria-hidden="true"></span>
-      <span class="project-name">Мой учебный проект <span class="project-badge">Прототип</span></span>
+      <span class="project-name"><span id="projectName">Мой учебный курс</span> <span class="project-badge">Черновик</span></span>
       <div class="top-actions">
         <span class="save-state" id="saveState" role="status" aria-live="polite"><span class="save-dot"></span> Сохранено локально</span>
-        <button type="button" class="button button-ghost" id="exportJson" title="Сохранить резервную копию всех уроков"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> Проект JSON</button>
-        <button type="button" class="button button-primary" id="exportHtml"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> Скачать HTML</button>
+        <button type="button" class="button button-ghost" id="exportJson" title="Сохранить резервную копию всех уроков"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> Экспорт курса</button>
+        <button type="button" class="button button-primary" id="exportHtml"><svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ic-download"></use></svg> HTML шага</button>
       </div>
     </header>
 
     <div class="workspace">
       <aside class="sidebar" id="sidebar" aria-label="Навигация по курсу">
         <div class="sidebar-top">
-          <div class="eyebrow">РАБОЧАЯ ОБЛАСТЬ</div>
-          <div class="course-cover"><span aria-hidden="true">⌘</span></div>
-          <h2>Мой учебный курс</h2>
-          <p>Создавай и редактируй уроки, а затем выгружай готовую HTML-разметку.</p>
+          <div class="eyebrow">ВАШ КУРС</div>
+          <label class="visually-hidden" for="courseTitle">Название курса</label>
+          <textarea id="courseTitle" class="course-title" rows="2" maxlength="160" aria-label="Название курса" autocomplete="off" spellcheck="false"></textarea>
+          <p id="courseSummary"></p>
         </div>
-        <div class="section-heading"><span>МОДУЛИ И УРОКИ</span><button id="addModule" class="icon-add" type="button" title="Добавить модуль" aria-label="Добавить модуль">＋</button><button id="addLesson" class="icon-add" type="button" title="Добавить урок" aria-label="Добавить урок">+</button></div>
+        <div class="section-heading"><span>СОДЕРЖАНИЕ КУРСА</span></div>
+        <p class="outline-help" id="outlineDragHelp">Потяните за ⠿, чтобы переместить модуль или урок.</p>
         <nav class="lesson-list" id="lessonList" aria-label="Список уроков"></nav>
+        <button id="addModule" class="course-add-module" type="button">＋ Добавить модуль</button>
         <div class="sidebar-bottom">
           <label class="toggle-line"><input type="checkbox" id="markdownToggle" checked><span>Markdown при вставке</span></label>
           <p>Если ChatGPT скопировал Markdown вместо HTML, преобразуем его в оформление.</p>
@@ -69,25 +74,26 @@
         </div>
       </aside>
 
+      <button id="sidebarBackdrop" class="sidebar-backdrop" aria-label="Закрыть содержание курса" hidden></button>
       <main class="main">
-        <div class="breadcrumb"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Показать список уроков">☰</button><span>Мой учебный курс</span><span class="crumb-separator">/</span><span>Редактирование урока</span></div>
+        <div class="breadcrumb"><button class="mobile-menu" id="menuToggle" type="button" aria-label="Показать содержание курса" aria-expanded="false" aria-controls="sidebar">☰</button><span id="courseCrumb"></span><span class="crumb-separator">/</span><span id="moduleCrumb"></span><span class="crumb-separator">/</span><span id="lessonCrumb"></span></div>
         <div class="editor-container">
           <div class="page-header">
-            <div>
-              <div class="eyebrow eyebrow-accent">КОНСТРУКТОР УРОКА</div>
-              <h1>Редактор уроков <span class="header-sparkle" aria-hidden="true">✳</span></h1>
-              <p>Вставляй текст из ChatGPT, сохраняй разметку и оформляй материал для публикации.</p>
-            </div>
-            <div class="step-pill"><span class="step-pill-dot"></span> Модули · уроки · шаги</div>
+            <div><div class="eyebrow eyebrow-accent" id="lessonPosition">РЕДАКТИРОВАНИЕ УРОКА</div><h1 id="lessonHeading">Редактор урока</h1><p>Соберите урок из конспектов и заданий. Изменения сохраняются автоматически.</p></div>
+            <span class="step-pill" id="lessonStepCount"></span>
           </div>
-
           <section class="editor-card" aria-label="Редактор">
             <div class="lesson-details">
               <label for="lessonTitle">НАЗВАНИЕ УРОКА</label>
               <input type="text" maxlength="160" id="lessonTitle" placeholder="Введите название урока" autocomplete="off">
             </div>
 
-            <div class="lesson-stepbar" id="lessonStepbar" aria-label="Шаги урока"><div id="stepTabs" class="lesson-step-tabs"></div><button type="button" id="addStepInline" class="button button-primary">＋ Добавить шаг</button></div><div id="stepQuizPanel" class="step-quiz-panel" hidden></div><div id="noteEditorRegion"><div class="mode-row">
+            <div class="lesson-stepbar" id="lessonStepbar" aria-label="Шаги урока"><div id="stepTabs" class="lesson-step-tabs" role="tablist" aria-label="Шаги урока"></div><button type="button" id="addStepInline" class="button button-secondary">＋ Добавить шаг</button></div>
+            <div class="step-details">
+              <div class="step-caption"><span id="stepTypeLabel" class="eyebrow"></span><span id="stepPosition"></span></div>
+              <div class="step-title-row"><label for="stepTitle" class="visually-hidden">Название шага</label><input id="stepTitle" maxlength="160" placeholder="Название шага" aria-label="Название шага"><div class="step-actions"><button id="stepMoveLeft" class="button button-secondary" title="Переместить шаг влево" aria-label="Переместить шаг влево">←</button><button id="stepMoveRight" class="button button-secondary" title="Переместить шаг вправо" aria-label="Переместить шаг вправо">→</button><button id="stepDuplicate" class="button button-secondary">Дублировать</button><button id="stepDelete" class="button button-secondary danger-text">Удалить</button></div></div>
+            </div>
+            <div id="stepContent" role="tabpanel"><div id="stepQuizPanel" class="step-quiz-panel" hidden></div><div id="noteEditorRegion"><div class="mode-row">
               <div class="mode-tabs" role="tablist" aria-label="Режим редактора">
                 <button type="button" id="tabVisual" class="mode-tab active" data-mode="visual" role="tab" aria-selected="true" aria-controls="visualPanel">✎ Редактор</button>
                 <button type="button" id="tabSource" class="mode-tab" data-mode="source" role="tab" aria-selected="false" aria-controls="sourcePanel">&lt;/&gt; HTML</button>
@@ -161,13 +167,13 @@
             </div>
 
             <div id="visualPanel" class="editor-panel" role="tabpanel" aria-labelledby="tabVisual">
-              <div id="editor" class="rich-editor article-content" contenteditable="true" role="textbox" aria-label="Содержимое урока" aria-multiline="true" spellcheck="true" data-placeholder="Вставьте текст из ChatGPT (Ctrl+V) или начните печатать..."></div>
+              <div id="editor" class="rich-editor article-content" contenteditable="true" role="textbox" aria-label="Содержимое шага" aria-multiline="true" spellcheck="true" data-placeholder="Вставьте текст из ChatGPT (Ctrl+V) или начните печатать..."></div>
             </div>
             <div id="sourcePanel" class="editor-panel" role="tabpanel" aria-labelledby="tabSource" hidden>
               <div class="source-help">Редактируй HTML напрямую. При применении опасные теги и атрибуты будут удалены.</div>
               <div id="htmlSourceShell" class="html-source-shell">
                 <pre id="htmlSourceHighlight" class="html-source-highlight" aria-hidden="true"><code></code></pre>
-                <textarea id="sourceEditor" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="HTML-код урока" placeholder="<h2>Заголовок</h2>"></textarea>
+                <textarea id="sourceEditor" wrap="soft" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="HTML-код шага" placeholder="<h2>Заголовок</h2>"></textarea>
               </div>
             </div>
             <div id="previewPanel" class="editor-panel" role="tabpanel" aria-labelledby="tabPreview" hidden>
@@ -178,17 +184,19 @@
               <span id="editorHint">💡 Совет: скопируй оформленный ответ ChatGPT и вставь его с помощью Ctrl+V.</span>
               <span class="html-badge">HTML</span>
             </div>
-          </div>
+          </div></div>
           </section>
 
+          <div class="step-navigation"><button id="previousStep" class="button button-secondary">← Предыдущий шаг</button><span id="stepNavigationLabel"></span><button id="nextStep" class="button button-secondary">Следующий шаг →</button></div>
           <div class="bottom-bar">
             <div class="bottom-notice"><span class="notice-icon">◎</span><span>Проект сохраняется в этом браузере. Для резервной копии выгрузи JSON.</span></div>
-            <div class="bottom-buttons"><button type="button" class="button button-secondary" id="copyRich">⧉ Копировать оформление</button><button type="button" class="button button-secondary" id="copyHtml">⌘ HTML-код</button></div>
+            <div class="bottom-buttons" id="noteCopyActions"><button type="button" class="button button-secondary" id="copyRich">⧉ Копировать оформление</button><button type="button" class="button button-secondary" id="copyHtml">⌘ HTML-код</button></div>
           </div>
         </div>
       </main>
     </div>
-    <dialog id="stepTypeDialog" class="link-dialog"><h2>Добавить шаг</h2><p>Выберите тип шага</p><div id="stepTypeChoices" class="step-type-choices"></div><button type="button" class="button button-secondary" id="closeStepTypes">Отмена</button></dialog>
+    <dialog id="stepTypeDialog" class="step-type-dialog" aria-labelledby="stepTypeHeading"><div class="dialog-heading"><div><div class="eyebrow eyebrow-accent">НОВЫЙ ШАГ</div><h2 id="stepTypeHeading">Что добавим в урок?</h2></div><button type="button" class="link-close" id="closeStepTypes" aria-label="Закрыть выбор типа шага">×</button></div><p>Конспект объясняет материал, задание помогает его закрепить.</p><div id="stepTypeChoices" class="step-type-choices"></div></dialog>
+    <dialog id="structureDialog" class="structure-dialog" aria-labelledby="structureHeading"><form id="structureForm"><div class="dialog-heading"><h2 id="structureHeading"></h2><button type="button" id="closeStructure" class="link-close" aria-label="Закрыть настройки">×</button></div><label for="structureTitle">Название</label><input id="structureTitle" required maxlength="160" autocomplete="off"><div id="structureModuleField"><label for="structureModule">Модуль</label><select id="structureModule"></select></div><div id="structureActions" class="structure-actions"><button type="button" id="structureUp" class="button button-secondary">↑ Выше</button><button type="button" id="structureDown" class="button button-secondary">↓ Ниже</button><button type="button" id="structureDuplicate" class="button button-secondary">Дублировать урок</button><button type="button" id="structureDelete" class="button button-secondary danger-text">Удалить</button></div><p id="structureHelp" class="muted"></p><div class="dialog-actions"><button type="button" id="cancelStructure" class="button button-secondary">Отмена</button><button type="submit" class="button button-primary">Сохранить</button></div></form></dialog>
     <dialog id="linkDialog" class="link-dialog" aria-labelledby="linkDialogTitle">
       <form id="linkForm" class="link-form">
         <div class="link-dialog-header">

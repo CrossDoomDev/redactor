@@ -384,37 +384,50 @@
     return "lesson-" + Date.now() + "-" + Math.random().toString(36).slice(2);
   }
   function newProject() {
-    return { version: 2, activeId: "welcome", markdown: true, lessons: starterLessons.map((lesson) => ({ ...lesson })), modules: [{ id: "module-1", title: "Модуль 1. Введение", lessonIds: starterLessons.map(lesson => lesson.id), expanded: true }] };
+    return validateProject({title: "Разработка 2D-игр на Godot", activeId: "welcome", markdown: true,
+      lessons: starterLessons.map(lesson => ({...lesson})),
+      modules: [{id: "module-1", title: "Знакомство с Godot", lessonIds: ["welcome", "scenes"], expanded: true},
+        {id: "module-2", title: "Первая игра", lessonIds: ["exercise"], expanded: true}]
+    });
   }
   function validateProject(input) {
     if (!input || !Array.isArray(input.lessons) || input.lessons.length === 0 || input.lessons.length > 300) return null;
+    if (Array.isArray(input.modules) && input.modules.length > 100) return null;
+    if (input.lessons.some(lesson => Array.isArray(lesson?.steps) && lesson.steps.length > 150)) return null;
     const seen = new Set();
-    const lessons = input.lessons.map((lesson, index) => {
+    const lessons = input.lessons.filter(lesson => lesson && typeof lesson === "object").map((lesson, index) => {
       const originalId = String(lesson.id || "import-" + index).slice(0, 90);
       const id = seen.has(originalId) ? makeId() : originalId;
       seen.add(id);
-      return {
-        id: id,
-        title: String(lesson.title || "Без названия").slice(0, 160),
-        html: sanitizeHtml(String(lesson.html || "").slice(0, MAX_IMPORT_BYTES)),
-        steps: Array.isArray(lesson.steps) ? lesson.steps.slice(0, 150) : undefined
-      };
+      const html = sanitizeHtml(String(lesson.html || "").slice(0, MAX_IMPORT_BYTES));
+      const stepIds = new Set();
+      const rawSteps = Array.isArray(lesson.steps) && lesson.steps.length ? lesson.steps.slice(0, 150) : [{type: "note", title: "Конспект", html}];
+      const steps = rawSteps.map(raw => {
+        const step = window.CourseModel.normalizeStep(raw, sanitizeHtml);
+        if (stepIds.has(step.id)) step.id = makeId();
+        stepIds.add(step.id);
+        return step;
+      });
+      return {id, title: String(lesson.title || "Без названия").slice(0, 160), html, steps,
+        activeStepId: steps.some(step => step.id === lesson.activeStepId) ? lesson.activeStepId : steps[0].id};
     });
-    const active = lessons.some((lesson) => lesson.id === input.activeId) ? input.activeId : lessons[0].id;
+    if (!lessons.length) return null;
+    const active = lessons.some(lesson => lesson.id === input.activeId) ? input.activeId : lessons[0].id;
     const validIds = new Set(lessons.map(l => l.id));
-    const used = new Set();
-    const modules = Array.isArray(input.modules) ? input.modules.slice(0,100).map((m,i) => ({
-      id: String(m.id || "module-" + i).slice(0,90),
-      title: String(m.title || "Модуль " + (i+1)).slice(0,160),
-      expanded: m.expanded !== false,
-      lessonIds: Array.isArray(m.lessonIds) ? m.lessonIds.filter(id => {
-        if (!validIds.has(id) || used.has(id)) return false;
-        used.add(id); return true;
-      }) : []
-    })) : [];
-    if (!modules.length) modules.push({ id: makeId(), title: "Модуль 1. Введение", expanded: true, lessonIds: [] });
+    const used = new Set(), moduleIds = new Set();
+    const modules = Array.isArray(input.modules) ? input.modules.filter(m => m && typeof m === "object").slice(0, 100).map((m, i) => {
+      let id = String(m.id || makeId()).slice(0, 90);
+      if (moduleIds.has(id)) id = makeId();
+      moduleIds.add(id);
+      return {id, title: String(m.title || "Модуль " + (i + 1)).slice(0, 160), expanded: m.expanded !== false,
+        lessonIds: Array.isArray(m.lessonIds) ? m.lessonIds.filter(id => {
+          if (!validIds.has(id) || used.has(id)) return false;
+          used.add(id); return true;
+        }) : []};
+    }) : [];
+    if (!modules.length) modules.push({id: makeId(), title: "Первый модуль", expanded: true, lessonIds: []});
     lessons.forEach(l => { if (!used.has(l.id)) modules[0].lessonIds.push(l.id); });
-    return { version: 2, activeId: active, markdown: input.markdown !== false, lessons, modules };
+    return {version: 3, title: String(input.title || "Мой учебный курс").slice(0, 160), activeId: active, markdown: input.markdown !== false, lessons, modules};
   }
   function loadProject() {
     try {
@@ -444,98 +457,233 @@
   function moduleForLesson(id) {
     return project.modules.find(m => m.lessonIds.includes(id)) || project.modules[0];
   }
+  function selectedStep() {
+    const lesson = selectedLesson();
+    return lesson.steps.find(step => step.id === lesson.activeStepId) || lesson.steps[0];
+  }
+  function updateCourseContext() {
+    const lesson = selectedLesson(), module = moduleForLesson(lesson.id);
+    const mi = project.modules.indexOf(module) + 1, li = module.lessonIds.indexOf(lesson.id) + 1;
+    if (document.activeElement !== $("courseTitle")) $("courseTitle").value = project.title;
+    $("projectName").textContent = project.title;
+    $("courseCrumb").textContent = project.title;
+    $("moduleCrumb").textContent = module.title;
+    $("lessonCrumb").textContent = lesson.title;
+    $("lessonHeading").textContent = lesson.title;
+    $("lessonPosition").textContent = "МОДУЛЬ " + mi + " · УРОК " + mi + "." + li;
+    $("courseSummary").textContent = project.modules.length + " модулей · " + project.lessons.length + " уроков";
+    $("lessonStepCount").textContent = "Шагов в уроке: " + lesson.steps.length;
+  }
   function renderLessons() {
+    updateCourseContext();
     lessonList.replaceChildren();
     project.modules.forEach((module, mi) => {
-      const group = document.createElement("div");
+      const group = document.createElement("section");
       group.className = "course-module";
+      group.dataset.moduleId = module.id;
       const heading = document.createElement("div");
       heading.className = "course-module-heading";
       const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "module-toggle";
+      toggle.type = "button"; toggle.className = "module-toggle";
       toggle.setAttribute("aria-expanded", String(module.expanded !== false));
       toggle.textContent = (module.expanded === false ? "▸ " : "▾ ") + (mi + 1) + ". " + module.title;
-      toggle.title = "Свернуть или раскрыть модуль";
-      toggle.addEventListener("click", () => { module.expanded = module.expanded === false; renderLessons(); persistStructure(); });
+      toggle.addEventListener("click", () => { module.expanded = module.expanded === false; renderLessons(); saveNow(); });
       const actions = document.createElement("button");
-      actions.type = "button";
-      actions.className = "module-menu";
-      actions.textContent = "⋯";
-      actions.title = "Настройки модуля";
-      actions.addEventListener("click", () => {
-        const action = prompt("Действие с модулем: 1 — переименовать, 2 — добавить урок, 3 — удалить пустой модуль, 4 — переместить выше, 5 — переместить ниже", "1");
-        if (action === "1") {
-          const title = prompt("Название модуля", module.title);
-          if (title?.trim()) module.title = title.trim().slice(0,160);
-        } else if (action === "2") { createLesson(module.id); return; }
-        else if (action === "3") {
-          if (module.lessonIds.length) { toast("Сначала перенесите уроки в другой модуль."); return; }
-          if (project.modules.length === 1) { toast("Последний модуль удалить нельзя."); return; }
-          if (confirm("Удалить пустой модуль?")) project.modules.splice(mi,1);
-        } else if (action === "4" && mi > 0) [project.modules[mi-1],project.modules[mi]] = [project.modules[mi],project.modules[mi-1]];
-        else if (action === "5" && mi < project.modules.length-1) [project.modules[mi+1],project.modules[mi]] = [project.modules[mi],project.modules[mi+1]];
-        renderLessons(); persistStructure();
-      });
-      heading.append(toggle, actions);
-      group.append(heading);
+      actions.type = "button"; actions.className = "module-menu"; actions.textContent = "⋯";
+      actions.setAttribute("aria-label", "Настройки модуля «" + module.title + "»");
+      actions.addEventListener("click", () => openStructure("module", module.id));
+      const grip = structureGrip("module", module.id, module.title);
+      heading.append(grip, toggle, actions); group.append(heading);
       if (module.expanded !== false) {
         module.lessonIds.forEach((id, li) => {
           const lesson = project.lessons.find(l => l.id === id);
-          if (!lesson) return;
-          const row = document.createElement("div");
-          row.className = "module-lesson-row";
+          const row = document.createElement("div"); row.className = "module-lesson-row";
+          row.dataset.lessonId = lesson.id;
           const button = document.createElement("button");
-          button.type = "button";
-          button.className = "lesson-item" + (lesson.id === project.activeId ? " active" : "");
-          button.setAttribute("aria-current", lesson.id === project.activeId ? "page" : "false");
+          button.type = "button"; button.className = "lesson-item" + (lesson.id === project.activeId ? " active" : "");
+          if (lesson.id === project.activeId) button.setAttribute("aria-current", "page");
           button.title = lesson.title;
-          const icon = document.createElement("span");
-          icon.className = "lesson-icon";
-          icon.textContent = (mi + 1) + "." + (li + 1);
-          const name = document.createElement("span");
-          name.className = "lesson-item-name";
-          name.textContent = lesson.title;
-          button.append(icon,name);
-          button.addEventListener("click", () => switchLesson(lesson.id));
-          const move = document.createElement("button");
-          move.type = "button"; move.className = "lesson-more"; move.textContent = "⋮";
-          move.title = "Переместить урок";
-          move.addEventListener("click", () => {
-            const names = project.modules.map((m,i) => (i+1) + ": " + m.title).join("\n");
-            const value = prompt("Переместить урок в модуль (введите номер):\n" + names, String(mi+1));
-            if (value === null) return;
-            const target = project.modules[Number(value)-1];
-            if (!target) { toast("Такого модуля нет."); return; }
-            module.lessonIds = module.lessonIds.filter(x => x !== id);
-            target.lessonIds.push(id); target.expanded = true;
-            renderLessons(); persistStructure();
-          });
-          row.append(button,move); group.append(row);
+          const icon = document.createElement("span"); icon.className = "lesson-icon"; icon.textContent = (mi + 1) + "." + (li + 1);
+          const name = document.createElement("span"); name.className = "lesson-item-name"; name.textContent = lesson.title;
+          const count = document.createElement("span"); count.className = "lesson-count"; count.textContent = lesson.steps.length;
+          count.title = "Шагов: " + lesson.steps.length;
+          button.append(icon, name, count); button.addEventListener("click", () => switchLesson(lesson.id));
+          const more = document.createElement("button"); more.type = "button"; more.className = "lesson-more"; more.textContent = "⋮";
+          more.setAttribute("aria-label", "Настройки урока «" + lesson.title + "»");
+          more.addEventListener("click", () => openStructure("lesson", id));
+          row.append(structureGrip("lesson", lesson.id, lesson.title), button, more); group.append(row);
         });
-        const add = document.createElement("button");
-        add.type = "button"; add.className = "module-add-lesson";
-        add.textContent = "＋ Добавить урок";
-        add.addEventListener("click", () => createLesson(module.id));
-        group.append(add);
+        if (!module.lessonIds.length) {
+          const empty = document.createElement("p"); empty.className = "module-empty";
+          empty.textContent = "Перетащите сюда урок или добавьте новый."; group.append(empty);
+        }
+        const add = document.createElement("button"); add.type = "button"; add.className = "module-add-lesson"; add.textContent = "＋ Добавить урок";
+        add.addEventListener("click", () => createLesson(module.id)); group.append(add);
       }
       lessonList.append(group);
     });
   }
-  function persistStructure() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(project)); }
-    catch (_) { toast("Не удалось сохранить структуру. Экспортируйте JSON."); }
+  function structureGrip(kind, id, title) {
+    const grip = document.createElement("button");
+    grip.type = "button"; grip.className = "structure-grip"; grip.textContent = "⠿";
+    grip.dataset.dragKind = kind; grip.dataset.dragId = id;
+    grip.setAttribute("aria-label", "Переместить " + (kind === "module" ? "модуль" : "урок") + " «" + title + "»");
+    grip.setAttribute("aria-describedby", "outlineDragHelp");
+    grip.title = "Перетащите или используйте Alt + ↑ / ↓" + (kind === "lesson" ? "; Alt + ← / → — другой модуль" : "");
+    return grip;
   }
+  function moveOutline(data, target) {
+    // Persist the active editor before changing structure; keep the same lesson and step open.
+    saveNow();
+    if (data.kind === "module") {
+      const from = project.modules.findIndex(m => m.id === data.id);
+      let to = project.modules.findIndex(m => m.id === target.moduleId);
+      if (from < 0 || to < 0) return;
+      if (target.edge === "after") to++;
+      const [module] = project.modules.splice(from, 1);
+      if (from < to) to--;
+      project.modules.splice(to, 0, module);
+    } else {
+      const from = project.modules.find(m => m.lessonIds.includes(data.id));
+      const to = project.modules.find(m => m.id === target.moduleId);
+      if (!from || !to) return;
+      if (target.lessonId === data.id) return;
+      from.lessonIds.splice(from.lessonIds.indexOf(data.id), 1);
+      let position = target.lessonId ? to.lessonIds.indexOf(target.lessonId) : to.lessonIds.length;
+      if (position < 0) position = to.lessonIds.length;
+      else if (target.lessonId && target.edge === "after") position++;
+      to.lessonIds.splice(position, 0, data.id);
+      to.expanded = true;
+    }
+    saveNow();
+    toast(data.kind === "module" ? "Порядок модулей изменён." : "Урок перемещён.");
+  }
+  window.CourseReorder.bind({
+    root: lessonList, handle: ".structure-grip",
+    source(grip) {
+      const kind = grip.dataset.dragKind, id = grip.dataset.dragId;
+      const entity = (kind === "module" ? project.modules : project.lessons).find(item => item.id === id);
+      return entity && {kind, id, label: entity.title};
+    },
+    locate(data, hit, x, y) {
+      const group = hit.closest(".course-module");
+      if (!group) return null;
+      if (data.kind === "module") {
+        if (group.dataset.moduleId === data.id) return null;
+        const rect = group.getBoundingClientRect();
+        return {moduleId: group.dataset.moduleId, element: group, edge: y < rect.top + rect.height / 2 ? "before" : "after"};
+      }
+      const row = hit.closest(".module-lesson-row");
+      if (row?.dataset.lessonId === data.id) return null;
+      const rect = row?.getBoundingClientRect();
+      return {moduleId: group.dataset.moduleId, lessonId: row?.dataset.lessonId,
+        element: row || group, edge: row ? (y < rect.top + rect.height / 2 ? "before" : "after") : "inside"};
+    },
+    commit: moveOutline
+  });
+  lessonList.addEventListener("keydown", event => {
+    const grip = event.target.closest(".structure-grip");
+    if (!grip || !event.altKey || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const kind = grip.dataset.dragKind, id = grip.dataset.dragId;
+    const module = kind === "module" ? project.modules.find(m => m.id === id) : moduleForLesson(id);
+    const direction = ["ArrowUp", "ArrowLeft"].includes(event.key) ? -1 : 1;
+    if (kind === "lesson" && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
+      const next = project.modules[project.modules.indexOf(module) + direction];
+      if (next) moveOutline({kind, id}, {moduleId: next.id, edge: "inside"});
+    } else if (["ArrowUp", "ArrowDown"].includes(event.key)) {
+      const order = kind === "module" ? project.modules.map(m => m.id) : module.lessonIds;
+      const neighbor = order[order.indexOf(id) + direction];
+      if (neighbor) moveOutline({kind, id}, {moduleId: kind === "module" ? neighbor : module.id,
+        lessonId: kind === "lesson" ? neighbor : undefined, edge: direction < 0 ? "before" : "after"});
+    }
+    [...lessonList.querySelectorAll(".structure-grip")].find(el => el.dataset.dragKind === kind && el.dataset.dragId === id)?.focus();
+  });
   function createLesson(moduleId) {
+    if (project.lessons.length >= 300) { toast("В одном курсе поддерживается до 300 уроков."); return; }
     saveNow();
     const module = project.modules.find(m => m.id === moduleId) || project.modules[0];
-    const lesson = { id: makeId(), title: "Новый урок", html: "<p>Начните писать конспект...</p>" };
-    project.lessons.push(lesson);
-    module.lessonIds.push(lesson.id); module.expanded = true;
+    const step = window.CourseModel.createStep();
+    const lesson = {id: makeId(), title: "Новый урок", html: step.html, steps: [step], activeStepId: step.id};
+    project.lessons.push(lesson); module.lessonIds.push(lesson.id); module.expanded = true;
     project.activeId = lesson.id;
     setMode("visual"); mountLesson(); saveNow();
     lessonTitle.focus(); lessonTitle.select();
   }
+  let structureTarget = null;
+  function openStructure(kind, id = null) {
+    saveNow(); structureTarget = {kind, id};
+    const isModule = kind === "module", fresh = !id;
+    if (isModule && fresh && project.modules.length >= 100) { toast("В одном курсе поддерживается до 100 модулей."); return; }
+    const entity = id && (isModule ? project.modules : project.lessons).find(item => item.id === id);
+    $("structureHeading").textContent = (fresh ? "Новый " : "Настройки: ") + (isModule ? "модуль" : "урок");
+    $("structureTitle").value = entity?.title || "Новый модуль";
+    $("structureModuleField").hidden = isModule;
+    $("structureActions").hidden = fresh;
+    $("structureDuplicate").hidden = isModule;
+    $("structureHelp").textContent = isModule ? "Модуль объединяет уроки. Удалить можно только пустой модуль." : "Можно изменить порядок урока или перенести его в другой модуль.";
+    $("structureModule").replaceChildren(...project.modules.map(m => new Option(m.title, m.id)));
+    if (!isModule) $("structureModule").value = moduleForLesson(id).id;
+    const order = isModule ? project.modules.map(m => m.id) : moduleForLesson(id).lessonIds;
+    $("structureUp").disabled = order.indexOf(id) <= 0;
+    $("structureDown").disabled = order.indexOf(id) >= order.length - 1;
+    $("structureDelete").disabled = isModule ? fresh || entity.lessonIds.length > 0 || project.modules.length === 1 : project.lessons.length === 1;
+    $("structureDialog").showModal(); $("structureTitle").focus(); $("structureTitle").select();
+  }
+  function closeStructure() { $("structureDialog").close(); }
+  function finishStructure() {
+    closeStructure(); mountLesson(); saveNow();
+  }
+  $("structureForm").addEventListener("submit", event => {
+    event.preventDefault();
+    const title = $("structureTitle").value.trim();
+    if (!title) { $("structureTitle").focus(); return; }
+    const {kind, id} = structureTarget;
+    if (kind === "module") {
+      if (id) project.modules.find(m => m.id === id).title = title;
+      else project.modules.push({id: makeId(), title, lessonIds: [], expanded: true});
+    } else {
+      project.lessons.find(l => l.id === id).title = title;
+      const from = moduleForLesson(id), to = project.modules.find(m => m.id === $("structureModule").value);
+      if (from !== to) { from.lessonIds = from.lessonIds.filter(value => value !== id); to.lessonIds.push(id); to.expanded = true; }
+    }
+    finishStructure();
+  });
+  ["closeStructure", "cancelStructure"].forEach(id => $(id).addEventListener("click", closeStructure));
+  function moveStructure(direction) {
+    const {kind, id} = structureTarget;
+    const order = kind === "module" ? project.modules : moduleForLesson(id).lessonIds;
+    const index = kind === "module" ? order.findIndex(m => m.id === id) : order.indexOf(id);
+    if (index + direction < 0 || index + direction >= order.length) return;
+    [order[index], order[index + direction]] = [order[index + direction], order[index]];
+    finishStructure();
+  }
+  $("structureUp").addEventListener("click", () => moveStructure(-1));
+  $("structureDown").addEventListener("click", () => moveStructure(1));
+  $("structureDuplicate").addEventListener("click", () => {
+    if (project.lessons.length >= 300) { toast("В одном курсе поддерживается до 300 уроков."); return; }
+    const copy = structuredClone(project.lessons.find(l => l.id === structureTarget.id));
+    copy.id = makeId(); copy.title += " (копия)";
+    const activeIndex = copy.steps.findIndex(step => step.id === copy.activeStepId);
+    copy.steps.forEach(step => step.id = makeId()); copy.activeStepId = copy.steps[Math.max(0, activeIndex)].id;
+    const module = moduleForLesson(structureTarget.id);
+    module.lessonIds.splice(module.lessonIds.indexOf(structureTarget.id) + 1, 0, copy.id);
+    project.lessons.push(copy); project.activeId = copy.id; finishStructure();
+  });
+  $("structureDelete").addEventListener("click", () => {
+    const {kind, id} = structureTarget;
+    if (!confirm("Удалить " + (kind === "module" ? "пустой модуль?" : "урок со всеми шагами?"))) return;
+    if (kind === "module") {
+      if (project.modules.length === 1 || project.modules.find(m => m.id === id).lessonIds.length) return;
+      project.modules = project.modules.filter(m => m.id !== id);
+    } else {
+      if (project.lessons.length === 1) return;
+      const module = moduleForLesson(id); module.lessonIds = module.lessonIds.filter(value => value !== id);
+      project.lessons = project.lessons.filter(l => l.id !== id);
+      if (project.activeId === id) project.activeId = project.modules.flatMap(m => m.lessonIds)[0];
+    }
+    finishStructure();
+  });
 
   // Display-only highlighting. Source and saved HTML always contain plain code text.
   // GDScript-aware lightweight tokenizer. The palette follows the semantic
@@ -775,8 +923,8 @@
     clearTimeout(saveTimer);
     const lesson = selectedLesson();
     lesson.title = lessonTitle.value.trim() || "Без названия";
-    lesson.html = currentHtml();
-    if (window.kursografBeforeSave) window.kursografBeforeSave();
+    const step = selectedStep();
+    if (step.type === "note") { step.html = currentHtml(); lesson.html = step.html; }
     project.markdown = $("markdownToggle").checked;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
@@ -789,6 +937,8 @@
   }
   function mountLesson() {
     const lesson = selectedLesson();
+    const step = selectedStep();
+    lesson.html = step.type === "note" ? step.html : "";
     lessonTitle.value = lesson.title;
     editor.innerHTML = sanitizeHtml(lesson.html);
     prepareCodeBlocks(editor);
@@ -813,7 +963,7 @@
     setMode("visual");
     mountLesson();
     saveNow();
-    $("sidebar").classList.remove("open");
+    toggleSidebar(false);
   }
   function setMode(next) {
     if (!panels[next]) return;
@@ -1740,13 +1890,18 @@
         const imported = validateProject(JSON.parse(content));
         if (!imported) throw new Error("Некорректный формат проекта.");
         if (!window.confirm("Импорт JSON заменит текущие уроки. Продолжить?")) return;
+        clearTimeout(saveTimer);
         project = imported;
       } else if (/\.html?$/i.test(file.name)) {
+        if (project.lessons.length >= 300) throw new Error("В одном курсе поддерживается до 300 уроков.");
         saveNow();
         const title = file.name.replace(/\.html?$/i, "").slice(0, 160) || "Импортированный урок";
         const importedHtml = sanitizeHtml(content);
-        project.lessons.push({ id: makeId(), title: title, html: importedHtml });
-        project.activeId = project.lessons[project.lessons.length - 1].id;
+        const step = {...window.CourseModel.createStep(), html: importedHtml};
+        const lesson = {id: makeId(), title, html: importedHtml, steps: [step], activeStepId: step.id};
+        const module = moduleForLesson(project.activeId);
+        project.lessons.push(lesson); module.lessonIds.push(lesson.id); module.expanded = true;
+        project.activeId = lesson.id;
       } else {
         throw new Error("Поддерживаются только .html и .json.");
       }
@@ -1969,21 +2124,28 @@
       setMode(tab.dataset.mode);
     });
   });
-  $("addModule").addEventListener("click", () => {
-    const title = prompt("Название нового модуля", "Новый модуль");
-    if (!title?.trim()) return;
-    project.modules.push({ id: makeId(), title: title.trim().slice(0,160), lessonIds: [], expanded: true });
-    renderLessons(); persistStructure();
+  $("addModule").addEventListener("click", () => openStructure("module"));
+  $("courseTitle").addEventListener("input", () => {
+    project.title = $("courseTitle").value.trim() || "Без названия";
+    saveNow();
   });
-  $("addLesson").addEventListener("click", () => createLesson(moduleForLesson(project.activeId).id));
+  $("courseTitle").addEventListener("blur", updateCourseContext);
   $("markdownToggle").addEventListener("change", saveNow);
-  $("menuToggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
+  function toggleSidebar(open) {
+    $("sidebar").classList.toggle("open", open);
+    $("sidebarBackdrop").hidden = !open;
+    $("menuToggle").setAttribute("aria-expanded", String(open));
+  }
+  $("menuToggle").addEventListener("click", () => toggleSidebar(!$("sidebar").classList.contains("open")));
+  $("sidebarBackdrop").addEventListener("click", () => toggleSidebar(false));
+  document.addEventListener("keydown", event => { if (event.key === "Escape") toggleSidebar(false); });
   $("copyRich").addEventListener("click", copyRich);
   $("copyHtml").addEventListener("click", copyHtml);
   $("exportHtml").addEventListener("click", () => {
+    if (selectedStep().type !== "note") return;
     saveNow();
     download(standaloneHtml(), safeFilename(selectedLesson().title) + ".html", "text/html;charset=utf-8");
-    toast("HTML-файл урока скачан.");
+    toast("HTML-файл шага скачан.");
   });
   $("exportJson").addEventListener("click", () => {
     saveNow();
@@ -1996,9 +2158,18 @@
     await importFile(event.target.files[0]);
     event.target.value = "";
   });
-  window.addEventListener("beforeunload", () => { if (saveTimer) saveNow(); });
+  window.addEventListener("beforeunload", saveNow);
   $("markdownToggle").checked = project.markdown;
-  window.kursografBridge = { selectedLesson, saveNow, mountLesson, setMode, persist: () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(project)); updateSaveState("Сохранено локально", ""); } catch (_) { toast("Не удалось сохранить шаги."); } } };
+  window.kursografBridge = {
+    selectedLesson, selectedStep, saveNow, mountLesson, setMode, toast, makeId,
+    persist: saveNow,
+    switchStep(id) {
+      const lesson = selectedLesson();
+      if (!lesson.steps.some(step => step.id === id)) return;
+      saveNow(); lesson.activeStepId = id;
+      setMode("visual"); mountLesson(); saveNow();
+    }
+  };
   mountLesson();
   setMode("visual");
 })();

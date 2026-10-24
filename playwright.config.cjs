@@ -6,7 +6,10 @@ module.exports = defineConfig({
   use: {
     baseURL: "http://127.0.0.1:8765",
     browserName: "chromium",
-    headless: true
+    headless: true,
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+      : {}
   },
   workers: 1,
   reporter: process.env.CI ? "github" : "list",

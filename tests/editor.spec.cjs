@@ -578,6 +578,9 @@ test("all four handles support pointer drag and selected image stays adjustable"
 
 test("corner handle overlay repositions when page scrolls", async ({ page }) => {
   const img = await prepareResizableImage(page);
+  // Scrolling can move the pointer off the image. Select it so the overlay
+  // must remain visible independently of hover in the taller course editor.
+  await img.click();
   const before = await img.boundingBox();
   const overlay = page.locator("#imageResizeOverlay");
   const first = await overlay.boundingBox();

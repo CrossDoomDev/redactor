@@ -1,38 +1,268 @@
 "use strict";
 (() => {
-const b=window.kursografBridge, $=id=>document.getElementById(id);
-if(!b)return;
-const names={note:"Конспект",single:"Один ответ",multi:"Несколько ответов",match:"Сопоставление",sort:"Сортировка",table:"Таблица",blanks:"Пропуски",number:"Числовой ответ",text:"Текстовый ответ"};
-const icons={note:"📖",single:"◉",multi:"☑",match:"⇄",sort:"↕",table:"▦",blanks:"▤",number:"№",text:"✎"};
-const defaults={single:{options:[{text:"Вариант 1",correct:true},{text:"Вариант 2",correct:false}]},multi:{options:[{text:"Вариант 1",correct:true},{text:"Вариант 2",correct:false}]},match:{pairs:[["Термин","Определение"]]},sort:{items:["Первый","Второй"]},table:{rows:["Строка 1","Строка 2"],cols:["Столбец 1","Столбец 2"],correct:["0:0"]},blanks:{template:"Язык Godot — {{GDScript}}."},number:{answer:42,tolerance:0},text:{answers:["ответ"],caseSensitive:false}};
-const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let active=0,previousLesson=null,sortAnswer=[];
-function lesson(){return b.selectedLesson()}
-function steps(){const l=lesson();if(!Array.isArray(l.steps))l.steps=[{id:crypto.randomUUID(),type:"note",title:"Конспект",html:l.html||""}];return l.steps}
-function selected(){return steps()[active]}
-function persist(){b.persist()}
-function switchTo(i){const old=selected();if(old?.type==="note"){b.saveNow();old.html=lesson().html}active=i;const s=selected();if(s?.type==="note"){lesson().html=s.html||"";b.mountLesson();b.setMode("visual")}draw();persist()}
-function add(type){const s={id:crypto.randomUUID(),type,title:type==="note"?"Конспект":names[type],question:"Введите условие задания",explanation:"",...structuredClone(defaults[type]||{})};if(type==="note")s.html="<p>Начните писать конспект...</p>";steps().splice(active+1,0,s);$("stepTypeDialog").close();switchTo(active+1)}
-function field(label,key,value,area=false){return '<label class="step-field">'+label+(area?'<textarea data-field="'+key+'">'+esc(value)+'</textarea>':'<input data-field="'+key+'" value="'+esc(value)+'">')+'</label>'}
-function items(arr,kind){return arr.map((v,i)=>'<div class="step-line"><input data-item="'+kind+':'+i+'" value="'+esc(v)+'"><button data-remove="'+kind+':'+i+'">×</button></div>').join('')+'<button data-add="'+kind+'">＋ Добавить</button>'}
-function settings(s){switch(s.type){
-case"single":case"multi":return '<h3>Варианты ответов</h3>'+s.options.map((o,i)=>'<div class="step-line"><input type="'+(s.type==="single"?"radio":"checkbox")+'" name="correctOption" data-correct="'+i+'" '+(o.correct?"checked":"")+'><input data-option="'+i+'" value="'+esc(o.text)+'"><button data-remove="option:'+i+'">×</button></div>').join('')+'<button data-add="option">＋ Вариант</button>';
-case"match":return '<h3>Пары</h3>'+s.pairs.map((p,i)=>'<div class="step-line"><input data-pair="'+i+':0" value="'+esc(p[0])+'"><input data-pair="'+i+':1" value="'+esc(p[1])+'"><button data-remove="pair:'+i+'">×</button></div>').join('')+'<button data-add="pair">＋ Пара</button>';
-case"sort":return '<h3>Элементы в правильном порядке</h3>'+items(s.items,"item");
-case"table":return '<h3>Строки</h3>'+items(s.rows,"row")+'<h3>Столбцы</h3>'+items(s.cols,"col")+'<h3>Правильные ячейки</h3>'+grid(s,true);
-case"blanks":return field("Текст (правильные ответы в {{двойных скобках}})","template",s.template,true);
-case"number":return field("Правильное число","answer",s.answer)+field("Допустимая погрешность","tolerance",s.tolerance);
-case"text":return field("Допустимые ответы, каждый с новой строки","answers",s.answers.join("\n"),true)+'<label><input type="checkbox" data-bool="caseSensitive" '+(s.caseSensitive?"checked":"")+'> Учитывать регистр</label>';
-}}
-function grid(s,author){return '<table class="step-grid"><tr><th></th>'+s.cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr>'+s.rows.map((r,i)=>'<tr><th>'+esc(r)+'</th>'+s.cols.map((c,j)=>'<td><input type="checkbox" data-'+(author?"cell":"answer-cell")+'="'+i+':'+j+'" '+(author&&s.correct.includes(i+":"+j)?"checked":"")+'></td>').join('')+'</tr>').join('')+'</table>'}
-function draw(){const s=selected();if(!s)return;$("stepTabs").innerHTML=steps().map((x,i)=>'<button type="button" class="step-tab '+(i===active?"active":"")+'" data-step="'+i+'" title="'+esc(names[x.type])+'"><span>'+icons[x.type]+'</span><small>'+(i+1)+'</small></button>').join('');$("noteEditorRegion").hidden=s.type!=="note";$("stepQuizPanel").hidden=s.type==="note";if(s.type==="note")return;$("stepQuizPanel").innerHTML='<div class="step-editor-head"><strong>'+esc(names[s.type])+'</strong><div><button data-move="-1">←</button><button data-move="1">→</button><button data-duplicate>Дублировать</button><button data-delete>Удалить</button></div></div><div class="step-editor-cols"><div class="step-settings">'+field("Название шага","title",s.title)+field("Условие","question",s.question,true)+settings(s)+field("Пояснение после проверки","explanation",s.explanation,true)+'</div><div class="step-student"><h3>Предпросмотр ученика</h3><div id="stepStudent"></div></div></div>';student()}
-function student(){const s=selected();let html='<h3>'+esc(s.title)+'</h3><p>'+esc(s.question)+'</p>';if(s.type==="single"||s.type==="multi")html+=s.options.map((o,i)=>'<label><input type="'+(s.type==="single"?"radio":"checkbox")+'" name="studentChoice" data-choice="'+i+'"> '+esc(o.text)+'</label>').join('');if(s.type==="match")html+=s.pairs.map((p,i)=>'<label>'+esc(p[0])+'<select data-match="'+i+'"><option value="">Выберите</option>'+[...s.pairs].reverse().map(x=>'<option>'+esc(x[1])+'</option>').join('')+'</select></label>').join('');if(s.type==="sort"){sortAnswer=[...s.items].reverse();html+='<div id="sortAnswer"></div>'}if(s.type==="table")html+=grid(s,false);if(s.type==="blanks")html+=esc(s.template).replace(/\{\{([^{}]+)\}\}/g,'<input data-blank placeholder="Ответ">');if(s.type==="number"||s.type==="text")html+='<input id="answerText" placeholder="Введите ответ">';$("stepStudent").innerHTML=html+'<button class="button button-primary" data-check>Проверить</button><div id="stepResult"></div>';drawSort()}
-function drawSort(){const e=$("sortAnswer");if(e)e.innerHTML=sortAnswer.map((x,i)=>'<div class="step-line"><span>'+esc(x)+'</span><button data-sort="'+i+':-1">↑</button><button data-sort="'+i+':1">↓</button></div>').join('')}
-function check(){const s=selected(),query=x=>[...$("stepStudent").querySelectorAll(x)];let ok=false;if(["single","multi"].includes(s.type)){const a=query("[data-choice]:checked").map(x=>+x.dataset.choice),right=s.options.map((o,i)=>o.correct?i:-1).filter(x=>x>=0);ok=right.length>0&&a.length===right.length&&right.every(x=>a.includes(x))}if(s.type==="match")ok=s.pairs.every((p,i)=>query('[data-match="'+i+'"]')[0]?.value===p[1]);if(s.type==="sort")ok=JSON.stringify(sortAnswer)===JSON.stringify(s.items);if(s.type==="table"){const a=query("[data-answer-cell]:checked").map(x=>x.dataset.answerCell);ok=a.length===s.correct.length&&s.correct.every(x=>a.includes(x))}if(s.type==="blanks"){const a=[...s.template.matchAll(/\{\{([^{}]+)\}\}/g)].map(x=>x[1].trim()),v=query("[data-blank]").map(x=>x.value.trim());ok=a.length>0&&a.every((x,i)=>x===v[i])}if(s.type==="number"){const raw=$("answerText").value.trim(),v=Number(raw.replace(",","."));ok=raw!==""&&Number.isFinite(v)&&Math.abs(v-Number(s.answer))<=Math.max(0,Number(s.tolerance)||0)}if(s.type==="text"){const raw=$("answerText").value.trim(),norm=x=>s.caseSensitive?x.trim():x.trim().toLocaleLowerCase("ru");ok=s.answers.some(x=>norm(x)===norm(raw))}$("stepResult").textContent=(ok?"✓ Правильно":"✕ Попробуйте ещё раз")+(s.explanation?" — "+s.explanation:"")}
-$("stepTypeChoices").innerHTML=Object.entries(names).map(([type,name])=>'<button data-new="'+type+'">'+icons[type]+' '+name+'</button>').join('');$("addStepInline").onclick=()=>$("stepTypeDialog").showModal();$("closeStepTypes").onclick=()=>$("stepTypeDialog").close();$("stepTypeChoices").onclick=e=>{const x=e.target.closest("[data-new]");if(x)add(x.dataset.new)};$("stepTabs").onclick=e=>{const x=e.target.closest("[data-step]");if(x)switchTo(+x.dataset.step)};
-$("stepQuizPanel").addEventListener("input",e=>{const t=e.target,s=selected();if(t.dataset.field){s[t.dataset.field]=t.dataset.field==="answers"?t.value.split("\n"):t.value}else if(t.dataset.option!==undefined)s.options[+t.dataset.option].text=t.value;else if(t.dataset.pair){const [i,j]=t.dataset.pair.split(":").map(Number);s.pairs[i][j]=t.value}else if(t.dataset.item){const [k,i]=t.dataset.item.split(":");s[k==="item"?"items":k==="row"?"rows":"cols"][+i]=t.value}persist();if(t.dataset.field==="title")$("stepTabs").querySelector(".active").title=s.title});
-$("stepQuizPanel").addEventListener("change",e=>{const t=e.target,s=selected();if(t.dataset.correct!==undefined){const i=+t.dataset.correct;if(s.type==="single")s.options.forEach((o,j)=>o.correct=i===j);else s.options[i].correct=t.checked}if(t.dataset.cell){s.correct=s.correct.filter(x=>x!==t.dataset.cell);if(t.checked)s.correct.push(t.dataset.cell)}if(t.dataset.bool)s[t.dataset.bool]=t.checked;persist();student()});
-$("stepQuizPanel").onclick=e=>{const t=e.target.closest("button");if(!t)return;const s=selected();if(t.hasAttribute("data-check")){check();return}if(t.dataset.sort){const [i,d]=t.dataset.sort.split(":").map(Number);if(sortAnswer[i+d]!==undefined)[sortAnswer[i],sortAnswer[i+d]]=[sortAnswer[i+d],sortAnswer[i]];drawSort();return}if(t.hasAttribute("data-delete")){if(!confirm("Удалить шаг?"))return;steps().splice(active,1);if(!steps().length)steps().push({id:crypto.randomUUID(),type:"note",title:"Конспект",html:"<p></p>"});active=Math.min(active,steps().length-1);if(selected().type==="note"){lesson().html=selected().html;b.mountLesson()}persist();draw();return}if(t.hasAttribute("data-duplicate")){const copy=structuredClone(s);copy.id=crypto.randomUUID();copy.title+=" (копия)";steps().splice(active+1,0,copy);switchTo(active+1);return}if(t.dataset.move){const j=active+Number(t.dataset.move);if(j>=0&&j<steps().length){[steps()[active],steps()[j]]=[steps()[j],steps()[active]];active=j;draw();persist()}return}if(t.dataset.add){const k=t.dataset.add;if(k==="option")s.options.push({text:"Новый вариант",correct:false});if(k==="pair")s.pairs.push(["Термин","Определение"]);if(k==="item")s.items.push("Новый элемент");if(k==="row")s.rows.push("Новая строка");if(k==="col")s.cols.push("Новый столбец")}if(t.dataset.remove){const [k,i]=t.dataset.remove.split(":");const arr=k==="option"?s.options:k==="pair"?s.pairs:s.items;arr.splice(+i,1)}persist();draw()};
-window.addEventListener("kursograf:lesson-mounted",()=>{const l=lesson();if(l!==previousLesson){previousLesson=l;active=0}draw()});
-window.kursografBeforeSave = () => { const s=selected(); if(s?.type==="note") s.html=lesson().html; };\npreviousLesson=lesson();steps();draw();
+  const b = window.kursografBridge;
+  const {types, createStep} = window.CourseModel;
+  const $ = id => document.getElementById(id);
+  const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+  const lesson = () => b.selectedLesson();
+  const selected = () => b.selectedStep();
+  const index = () => lesson().steps.indexOf(selected());
+  let sortAnswer = [];
+
+  function field(label, key, value, area = false, numeric = false) {
+    return `<label class="step-field">${label}${area
+      ? `<textarea data-field="${key}">${esc(value)}</textarea>`
+      : `<input data-field="${key}" ${numeric ? 'type="number" step="any"' : ''} ${key === "points" || key === "tolerance" ? 'min="0"' : ''} ${key === "points" ? 'max="100"' : ''} value="${esc(value)}">`}</label>`;
+  }
+  function removeButton(kind, i, disabled = false) {
+    return `<button type="button" data-remove="${kind}:${i}" aria-label="Удалить элемент ${i + 1}" ${disabled ? 'disabled' : ''}>×</button>`;
+  }
+  function items(values, kind) {
+    const min = kind === "item" ? 2 : 1;
+    return values.map((value, i) => `<div class="step-line"><span class="item-number">${i + 1}</span><input aria-label="${kind === "item" ? "Элемент" : kind === "row" ? "Строка" : "Столбец"} ${i + 1}" data-item="${kind}:${i}" value="${esc(value)}">${removeButton(kind, i, values.length <= min)}</div>`).join("") + `<button type="button" class="button button-secondary" data-add="${kind}">＋ Добавить</button>`;
+  }
+  function grid(step, author) {
+    return `<div class="grid-scroll"><table class="step-grid"><caption>${author ? "Отметьте правильные ячейки" : "Выберите ячейки"}</caption><thead><tr><th scope="col"></th>${step.cols.map(c => `<th scope="col">${esc(c)}</th>`).join("")}</tr></thead><tbody>${step.rows.map((row, i) => `<tr><th scope="row">${esc(row)}</th>${step.cols.map((col, j) => `<td><input type="checkbox" aria-label="${esc(row)}: ${esc(col)}" data-${author ? "cell" : "answer-cell"}="${i}:${j}" ${author && step.correct.includes(i + ":" + j) ? "checked" : ""}></td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  }
+  function settings(step) {
+    switch (step.type) {
+      case "single": case "multi":
+        return `<h3>Варианты ответов</h3><p class="field-help">Отметьте ${step.type === "single" ? "правильный ответ" : "все правильные ответы"} слева от текста.</p>` + step.options.map((o, i) => `<div class="step-line"><input type="${step.type === "single" ? "radio" : "checkbox"}" name="correctOption" aria-label="Правильный вариант ${i + 1}" data-correct="${i}" ${o.correct ? "checked" : ""}><input aria-label="Вариант ${i + 1}" data-option="${i}" value="${esc(o.text)}">${removeButton("option", i, step.options.length <= 2)}</div>`).join("") + '<button type="button" class="button button-secondary" data-add="option">＋ Вариант ответа</button>';
+      case "match":
+        return '<h3>Правильные пары</h3><p class="field-help">В предпросмотре правая часть перемешана.</p>' + step.pairs.map((pair, i) => `<div class="step-line"><input aria-label="Левая часть пары ${i + 1}" data-pair="${i}:0" value="${esc(pair[0])}"><span>↔</span><input aria-label="Правая часть пары ${i + 1}" data-pair="${i}:1" value="${esc(pair[1])}">${removeButton("pair", i, step.pairs.length <= 1)}</div>`).join("") + '<button type="button" class="button button-secondary" data-add="pair">＋ Добавить пару</button>';
+      case "sort": return '<h3>Элементы в правильном порядке</h3><p class="field-help">Ученик получит элементы в другом порядке.</p>' + items(step.items, "item");
+      case "table": return '<h3>Строки</h3>' + items(step.rows, "row") + '<h3>Столбцы</h3>' + items(step.cols, "col") + grid(step, true);
+      case "blanks": return field("Текст с пропусками", "template", step.template, true) + '<p class="field-help">Заключайте правильные ответы в двойные скобки: Язык Godot — {{GDScript}}.</p>';
+      case "number": return field("Правильное число", "answer", step.answer, false, true) + field("Допустимая погрешность", "tolerance", step.tolerance, false, true);
+      case "text": return field("Допустимые ответы, каждый с новой строки", "answers", step.answers.join("\n"), true) + `<label class="check-label"><input type="checkbox" data-bool="caseSensitive" ${step.caseSensitive ? "checked" : ""}> Учитывать регистр</label>`;
+      default: return "";
+    }
+  }
+  function configurationError(step) {
+    const nonempty = value => String(value ?? "").trim().length > 0;
+    if (["single", "multi"].includes(step.type) && (step.options.length < 2 || step.options.some(o => !nonempty(o.text)) || !step.options.some(o => o.correct))) return "Заполните минимум два варианта и отметьте правильный ответ.";
+    if (step.type === "match" && (!step.pairs.length || step.pairs.some(p => p.some(v => !nonempty(v))))) return "Заполните обе части каждой пары.";
+    if (step.type === "sort" && (step.items.length < 2 || step.items.some(v => !nonempty(v)))) return "Добавьте минимум два непустых элемента.";
+    if (step.type === "table" && (!step.correct.length || [...step.rows, ...step.cols].some(v => !nonempty(v)))) return "Заполните названия строк и столбцов и отметьте правильные ячейки.";
+    if (step.type === "blanks" && !/\{\{\s*[^{}\s][^{}]*\}\}/.test(step.template)) return "Добавьте хотя бы один непустой пропуск в {{двойных скобках}}.";
+    if (step.type === "number" && (!nonempty(step.answer) || !Number.isFinite(Number(step.answer)) || !nonempty(step.tolerance) || !Number.isFinite(Number(step.tolerance)) || Number(step.tolerance) < 0)) return "Укажите число и неотрицательную погрешность.";
+    if (step.type === "text" && !step.answers.some(nonempty)) return "Добавьте хотя бы один допустимый ответ.";
+    if (step.points === "" || !Number.isFinite(Number(step.points)) || +step.points < 0 || +step.points > 100) return "Баллы должны быть числом от 0 до 100.";
+    return "";
+  }
+  function renderTabs() {
+    const active = index(), step = selected();
+    $("stepTabs").innerHTML = lesson().steps.map((s, i) => `<button type="button" id="step-tab-${i}" class="step-tab ${i === active ? "active" : ""}" data-step="${i}" data-step-id="${esc(s.id)}" role="tab" aria-selected="${i === active}" aria-controls="stepContent" tabindex="${i === active ? "0" : "-1"}" aria-label="Шаг ${i + 1}: ${esc(types[s.type].name)} — ${esc(s.title)}" title="${esc(s.title)} · ${types[s.type].name}. Перетащите, чтобы изменить порядок."><span class="step-number">${i + 1}</span><span class="step-symbol" aria-hidden="true">${types[s.type].icon}</span></button>`).join("");
+    $("stepContent").setAttribute("aria-labelledby", "step-tab-" + active);
+    $("stepTitle").value = step.title;
+    $("stepTypeLabel").textContent = types[step.type].name;
+    $("stepPosition").textContent = "Шаг " + (active + 1) + " из " + lesson().steps.length;
+    $("stepNavigationLabel").textContent = (active + 1) + " / " + lesson().steps.length;
+    $("stepMoveLeft").disabled = $("previousStep").disabled = active === 0;
+    $("stepMoveRight").disabled = $("nextStep").disabled = active === lesson().steps.length - 1;
+    $("stepDelete").disabled = lesson().steps.length === 1;
+    $("noteCopyActions").hidden = $("exportHtml").disabled = step.type !== "note";
+  }
+  function draw() {
+    renderTabs();
+    const step = selected();
+    $("noteEditorRegion").hidden = step.type !== "note";
+    $("stepQuizPanel").hidden = step.type === "note";
+    if (step.type === "note") return;
+    $("stepQuizPanel").innerHTML = `<div class="step-editor-cols"><section class="step-settings" aria-label="Настройки задания"><div class="panel-heading"><h2>Содержание задания</h2><span>Режим автора</span></div>${field("Условие задания", "question", step.question, true)}${settings(step)}<div class="assignment-scoring">${field("Баллы за правильный ответ", "points", step.points, false, true)}</div>${field("Пояснение после проверки", "explanation", step.explanation, true)}</section><section class="step-student" aria-label="Предпросмотр ученика"><div class="panel-heading"><h2>Как видит ученик</h2><span>Предпросмотр</span></div><div id="stepStudent"></div></section></div>`;
+    student();
+  }
+  function student() {
+    const step = selected();
+    if (step.type === "note") return;
+    let html = `<h3>${esc(step.title)}</h3><p class="student-question">${esc(step.question || "Здесь появится условие задания.")}</p>`;
+    if (["single", "multi"].includes(step.type)) html += step.options.map((o, i) => `<label class="student-option"><input type="${step.type === "single" ? "radio" : "checkbox"}" name="studentChoice" data-choice="${i}"><span>${esc(o.text)}</span></label>`).join("");
+    if (step.type === "match") html += step.pairs.map((p, i) => `<label class="match-answer"><span>${esc(p[0])}</span><select aria-label="Ответ для ${esc(p[0])}" data-match="${i}"><option value="">Выберите соответствие</option>${step.pairs.map((pair, j) => ({pair, j})).reverse().map(({pair, j}) => `<option value="${j}">${esc(pair[1])}</option>`).join("")}</select></label>`).join("");
+    if (step.type === "sort") { sortAnswer = step.items.map((_, i) => i).reverse(); html += '<div id="sortAnswer"></div>'; }
+    if (step.type === "table") html += grid(step, false);
+    if (step.type === "blanks") {
+      let number = 0;
+      html += '<div class="blanks-answer">' + esc(step.template).replace(/\{\{([^{}]+)\}\}/g, () => `<input data-blank aria-label="Пропуск ${++number}" placeholder="Ответ">`) + '</div>';
+    }
+    if (["number", "text"].includes(step.type)) html += `<label class="step-field">Ваш ответ<input id="answerText" ${step.type === "number" ? 'inputmode="decimal"' : ''} autocomplete="off" placeholder="Введите ответ"></label>`;
+    const error = configurationError(step);
+    $("stepStudent").innerHTML = html + `${error ? `<p class="configuration-warning" role="status">${esc(error)}</p>` : ""}<div class="student-submit"><button type="button" class="button button-primary" data-check ${error ? "disabled" : ""}>Проверить ответ</button><span>${esc(step.points)} балл.</span></div><div id="stepResult" role="status" aria-live="polite"></div>`;
+    drawSort();
+  }
+  function drawSort() {
+    if (!$("sortAnswer")) return;
+    $("sortAnswer").innerHTML = sortAnswer.map((answer, i) => `<div class="sort-answer-row"><span>${esc(selected().items[answer])}</span><button type="button" class="button button-secondary" data-sort="${i}:-1" aria-label="Переместить ответ ${i + 1} выше" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" class="button button-secondary" data-sort="${i}:1" aria-label="Переместить ответ ${i + 1} ниже" ${i === sortAnswer.length - 1 ? 'disabled' : ''}>↓</button></div>`).join("");
+  }
+  function check() {
+    const step = selected(), query = selector => [...$("stepStudent").querySelectorAll(selector)];
+    if (configurationError(step)) return;
+    let ok = false;
+    if (["single", "multi"].includes(step.type)) {
+      const answers = query("[data-choice]:checked").map(el => +el.dataset.choice);
+      const correct = step.options.flatMap((o, i) => o.correct ? [i] : []);
+      ok = answers.length === correct.length && correct.every(i => answers.includes(i));
+    }
+    if (step.type === "match") ok = query("[data-match]").every((el, i) => el.value !== "" && step.pairs[+el.value][1] === step.pairs[i][1]);
+    if (step.type === "sort") ok = sortAnswer.every((answer, i) => step.items[answer] === step.items[i]);
+    if (step.type === "table") {
+      const answers = query("[data-answer-cell]:checked").map(el => el.dataset.answerCell);
+      ok = answers.length === step.correct.length && step.correct.every(cell => answers.includes(cell));
+    }
+    if (step.type === "blanks") {
+      const answers = [...step.template.matchAll(/\{\{([^{}]+)\}\}/g)].map(m => m[1].trim());
+      ok = query("[data-blank]").every((el, i) => el.value.trim() === answers[i]);
+    }
+    if (step.type === "number") {
+      const raw = $("answerText").value.trim();
+      const value = Number(raw.replace(",", "."));
+      ok = raw !== "" && Number.isFinite(value) && Math.abs(value - Number(step.answer)) <= Number(step.tolerance);
+    }
+    if (step.type === "text") {
+      const normalize = value => step.caseSensitive ? value.trim() : value.trim().toLocaleLowerCase("ru");
+      const value = $("answerText").value;
+      ok = value.trim() !== "" && step.answers.filter(v => v.trim()).some(answer => normalize(answer) === normalize(value));
+    }
+    const result = $("stepResult");
+    result.className = ok ? "result-correct" : "result-incorrect";
+    result.textContent = (ok ? "✓ Правильно!" : "Ответ неверный. Попробуйте ещё раз.") + (step.explanation ? " " + step.explanation : "");
+  }
+  function add(type) {
+    if (lesson().steps.length >= 150) { b.toast("В одном уроке поддерживается до 150 шагов."); return; }
+    b.saveNow();
+    const step = createStep(type);
+    lesson().steps.splice(index() + 1, 0, step);
+    $("stepTypeDialog").close();
+    b.switchStep(step.id);
+    $("stepTitle").focus(); $("stepTitle").select();
+  }
+  function move(direction) {
+    b.saveNow();
+    const steps = lesson().steps, from = index(), to = from + direction;
+    if (to < 0 || to >= steps.length) return;
+    [steps[from], steps[to]] = [steps[to], steps[from]];
+    b.persist(); draw();
+  }
+  window.CourseReorder.bind({
+    root: $("stepTabs"), handle: ".step-tab",
+    source(tab) {
+      const step = lesson().steps.find(s => s.id === tab.dataset.stepId);
+      return step && {id: step.id, lessonId: lesson().id, label: step.title};
+    },
+    locate(data, hit, x) {
+      const tab = hit.closest(".step-tab");
+      if (!tab || tab.dataset.stepId === data.id) return null;
+      const rect = tab.getBoundingClientRect();
+      return {id: tab.dataset.stepId, element: tab, edge: x < rect.left + rect.width / 2 ? "before" : "after"};
+    },
+    commit(data, target) {
+      if (lesson().id !== data.lessonId) return;
+      b.saveNow();
+      const steps = lesson().steps, from = steps.findIndex(s => s.id === data.id);
+      let to = steps.findIndex(s => s.id === target.id);
+      if (from < 0 || to < 0) return;
+      if (target.edge === "after") to++;
+      const [step] = steps.splice(from, 1);
+      if (from < to) to--;
+      steps.splice(to, 0, step);
+      b.persist(); renderTabs();
+      b.toast("Порядок шагов изменён.");
+    }
+  });
+  $("stepTypeChoices").innerHTML = Object.entries(types).map(([type, {name, icon, description}]) => `<button type="button" data-new="${type}"><span class="type-choice-icon" aria-hidden="true">${icon}</span><span><strong>${name}</strong><small>${description}</small></span></button>`).join("");
+  $("addStepInline").addEventListener("click", () => $("stepTypeDialog").showModal());
+  $("closeStepTypes").addEventListener("click", () => $("stepTypeDialog").close());
+  $("stepTypeChoices").addEventListener("click", event => { const button = event.target.closest("[data-new]"); if (button) add(button.dataset.new); });
+  $("stepTabs").addEventListener("click", event => { const tab = event.target.closest("[data-step]"); if (tab) b.switchStep(lesson().steps[+tab.dataset.step].id); });
+  $("stepTabs").addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const target = event.key === "Home" ? 0 : event.key === "End" ? lesson().steps.length - 1 : (index() + (event.key === "ArrowRight" ? 1 : -1) + lesson().steps.length) % lesson().steps.length;
+    b.switchStep(lesson().steps[target].id); $("stepTabs").querySelector('[aria-selected="true"]').focus();
+  });
+  $("stepTitle").addEventListener("input", () => {
+    selected().title = $("stepTitle").value;
+    b.persist();
+    const tab = $("stepTabs").querySelector('[aria-selected="true"]');
+    tab.title = selected().title;
+    tab.setAttribute("aria-label", `Шаг ${index() + 1}: ${types[selected().type].name} — ${selected().title}`);
+    if (selected().type !== "note") student();
+  });
+  $("previousStep").onclick = () => { if (index() > 0) b.switchStep(lesson().steps[index() - 1].id); };
+  $("nextStep").onclick = () => { if (index() < lesson().steps.length - 1) b.switchStep(lesson().steps[index() + 1].id); };
+  $("stepMoveLeft").onclick = () => move(-1);
+  $("stepMoveRight").onclick = () => move(1);
+  $("stepDuplicate").onclick = () => {
+    if (lesson().steps.length >= 150) { b.toast("В одном уроке поддерживается до 150 шагов."); return; }
+    b.saveNow();
+    const copy = structuredClone(selected()); copy.id = b.makeId(); copy.title += " (копия)";
+    lesson().steps.splice(index() + 1, 0, copy); b.switchStep(copy.id);
+  };
+  $("stepDelete").onclick = () => {
+    if (lesson().steps.length <= 1 || !confirm("Удалить шаг «" + selected().title + "»?")) return;
+    b.saveNow();
+    const old = index(); lesson().steps.splice(old, 1);
+    lesson().activeStepId = lesson().steps[Math.min(old, lesson().steps.length - 1)].id;
+    b.setMode("visual"); b.mountLesson(); b.persist();
+  };
+  $("stepQuizPanel").addEventListener("input", event => {
+    const t = event.target, step = selected();
+    if (!t.closest(".step-settings")) { if ($("stepResult")) $("stepResult").textContent = ""; return; }
+    if (t.dataset.field) step[t.dataset.field] = t.dataset.field === "answers" ? t.value.split("\n") : t.type === "number" && t.value !== "" ? Number(t.value) : t.value;
+    else if (t.dataset.option !== undefined) step.options[+t.dataset.option].text = t.value;
+    else if (t.dataset.pair) { const [i, j] = t.dataset.pair.split(":").map(Number); step.pairs[i][j] = t.value; }
+    else if (t.dataset.item) { const [kind, i] = t.dataset.item.split(":"); step[kind === "item" ? "items" : kind === "row" ? "rows" : "cols"][+i] = t.value; }
+    else return;
+    if (t.dataset.item && step.type === "table") $("stepQuizPanel").querySelector(".step-settings .grid-scroll").outerHTML = grid(step, true);
+    b.persist(); student();
+  });
+  $("stepQuizPanel").addEventListener("change", event => {
+    const t = event.target, step = selected();
+    if (!t.closest(".step-settings")) return;
+    if (t.dataset.correct !== undefined) {
+      if (step.type === "single") step.options.forEach((option, i) => option.correct = i === +t.dataset.correct);
+      else step.options[+t.dataset.correct].correct = t.checked;
+    } else if (t.dataset.cell) {
+      step.correct = step.correct.filter(cell => cell !== t.dataset.cell);
+      if (t.checked) step.correct.push(t.dataset.cell);
+    } else if (t.dataset.bool) step[t.dataset.bool] = t.checked;
+    else return;
+    b.persist(); student();
+  });
+  $("stepQuizPanel").addEventListener("click", event => {
+    const button = event.target.closest("button");
+    if (!button || button.disabled) return;
+    const step = selected();
+    if (button.hasAttribute("data-check")) { check(); return; }
+    if (button.dataset.sort) {
+      const [i, d] = button.dataset.sort.split(":").map(Number);
+      if (sortAnswer[i + d] !== undefined) [sortAnswer[i], sortAnswer[i + d]] = [sortAnswer[i + d], sortAnswer[i]];
+      drawSort(); $("stepResult").textContent = ""; return;
+    }
+    const kind = button.dataset.add;
+    const collection = {option: "options", pair: "pairs", item: "items", row: "rows", col: "cols"}[kind];
+    if (collection && step[collection].length >= 100) { b.toast("Поддерживается до 100 элементов в списке."); return; }
+    if (kind === "option") step.options.push({text: "Новый вариант", correct: false});
+    if (kind === "pair") step.pairs.push(["Термин", "Определение"]);
+    if (kind === "item") step.items.push("Новый элемент");
+    if (kind === "row") step.rows.push("Новая строка");
+    if (kind === "col") step.cols.push("Новый столбец");
+    if (button.dataset.remove) {
+      const [kind, rawIndex] = button.dataset.remove.split(":"), i = +rawIndex;
+      const values = step[{option: "options", pair: "pairs", item: "items", row: "rows", col: "cols"}[kind]];
+      if (values.length <= (["option", "item"].includes(kind) ? 2 : 1)) return;
+      values.splice(i, 1);
+      if (["row", "col"].includes(kind)) {
+        const axis = kind === "row" ? 0 : 1;
+        step.correct = step.correct.flatMap(cell => {
+          const coords = cell.split(":").map(Number);
+          if (coords[axis] === i) return [];
+          if (coords[axis] > i) coords[axis]--;
+          return [coords.join(":")];
+        });
+      }
+    }
+    b.persist(); draw();
+  });
+  window.addEventListener("kursograf:lesson-mounted", draw);
+  draw();
 })();
